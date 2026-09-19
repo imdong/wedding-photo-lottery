@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
 import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
@@ -14,11 +15,24 @@ export default defineConfig({
                 }),
             ],
         }),
+        vue(),
         tailwindcss(),
     ],
     server: {
+        host: '0.0.0.0',
+        port: 5173,
+        strictPort: true,
+        origin: 'http://localhost:39539',
+        cors: {
+            origin: 'http://localhost:39538',
+        },
+        hmr: {
+            host: 'localhost',
+            clientPort: 39539,
+        },
         watch: {
             ignored: ['**/storage/framework/views/**'],
+            usePolling: true,
         },
     },
 });

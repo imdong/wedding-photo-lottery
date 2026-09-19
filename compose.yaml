@@ -49,6 +49,31 @@ services:
       retries: 10
       start_period: 20s
 
+  frontend:
+    image: node:24-alpine
+    working_dir: /var/www/html
+    ports:
+      - "39539:5173"
+    environment:
+      APP_URL: http://localhost:39538
+    volumes:
+      - .:/var/www/html
+      - node-modules-data:/var/www/html/node_modules
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - npm install --no-audit --no-fund && npm run dev
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:5173/@vite/client"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
 volumes:
   mysql-data:
+  node-modules-data:
   vendor-data:
