@@ -1,0 +1,54 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    ports:
+      - "39538:8000"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "${APP_KEY:?Set APP_KEY in .env}"
+      APP_URL: http://localhost:39538
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: wedding_photo_lottery
+      DB_USERNAME: wedding
+      DB_PASSWORD: wedding
+    volumes:
+      - .:/var/www/html
+      - vendor-data:/var/www/html/vendor
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - composer install --no-interaction --prefer-dist && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8000/up"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: wedding_photo_lottery
+      MYSQL_USER: wedding
+      MYSQL_PASSWORD: wedding
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  mysql-data:
+  vendor-data:

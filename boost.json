@@ -1,0 +1,20 @@
+{
+    "agents": [
+        "claude_code",
+        "antigravity",
+        "codex",
+        "junie"
+    ],
+    "cloud": true,
+    "guidelines": true,
+    "mcp": true,
+    "nightwatch": false,
+    "sail": false,
+    "skills": [
+        "infer-conventions",
+        "deploying-to-cloud",
+        "laravel-best-practices",
+        "testing-best-practices",
+        "tailwindcss-development"
+    ]
+}
