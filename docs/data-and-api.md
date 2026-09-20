@@ -70,6 +70,7 @@ photo_id                    foreign key photos.id
 previous_status
 new_status
 created_at
+undone_at                   nullable，撤销时间
 ```
 
 ### 1.6 `draw_rounds`
@@ -361,6 +362,18 @@ unique(draw_round_id, position)
 ### `POST /api/admin/reviews/undo`
 
 撤销最近一次审核并恢复上一个状态。
+
+成功时返回恢复后的照片状态：
+
+```json
+{
+  "id": 12,
+  "review_status": "pending",
+  "reviewed_at": null
+}
+```
+
+审核日志不会删除，而是写入 `undone_at`。恢复为 `pending` 的已上传照片会重新进入待审核队列。没有可撤销记录时返回 `409 nothing_to_undo`；照片状态已被其他操作改变时返回 `409 review_state_changed`。
 
 ### `GET /api/admin/reviews/stats`
 

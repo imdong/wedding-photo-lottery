@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\NextAdminReviewController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
 use App\Http\Controllers\Api\PreparedPhotoUploadController;
+use App\Http\Controllers\Api\UndoAdminReviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthCheckController::class)->name('health.show');
@@ -22,6 +23,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::middleware('admin.token')->group(function (): void {
         Route::get('/session', CurrentAdminSessionController::class)->name('session.show');
         Route::get('/reviews/next', NextAdminReviewController::class)->name('reviews.next');
+        Route::post('/reviews/undo', UndoAdminReviewController::class)->name('reviews.undo');
         Route::post('/photos/{photo}/review', AdminPhotoReviewController::class)->name('photos.review');
     });
 });

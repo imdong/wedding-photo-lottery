@@ -27,6 +27,7 @@ class AdminReviewLogFactory extends Factory
                 PhotoReviewStatus::Good,
                 PhotoReviewStatus::Rejected,
             ]),
+            'undone_at' => null,
         ];
     }
 }

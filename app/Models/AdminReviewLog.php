@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'photo_id',
     'previous_status',
     'new_status',
+    'undone_at',
 ])]
 class AdminReviewLog extends Model
 {
@@ -32,6 +33,7 @@ class AdminReviewLog extends Model
         return [
             'previous_status' => PhotoReviewStatus::class,
             'new_status' => PhotoReviewStatus::class,
+            'undone_at' => 'datetime',
         ];
     }
 }

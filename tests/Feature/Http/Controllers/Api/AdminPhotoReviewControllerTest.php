@@ -89,6 +89,7 @@ class AdminPhotoReviewControllerTest extends TestCase
         $this->assertSame(PhotoReviewStatus::Pending, $reviewLog->previous_status);
         $this->assertSame($reviewStatus, $reviewLog->new_status);
         $this->assertSame('2026-09-20T08:00:00.000000Z', $reviewLog->created_at?->toISOString());
+        $this->assertNull($reviewLog->undone_at);
     }
 
     #[DataProvider('incompleteUploadStatuses')]
