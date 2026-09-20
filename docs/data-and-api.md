@@ -259,6 +259,17 @@ unique(draw_round_id, position)
 - 不能给自己的照片点赞。
 - 重复调用保持幂等。
 
+成功响应：
+
+```json
+{
+  "photo_id": 10,
+  "liked": true
+}
+```
+
+自己的照片返回 `403 cannot_like_own_photo`；未完成上传、待审核或审核未通过的照片返回 `409 photo_not_likeable`。
+
 ### `DELETE /api/photos/{photo}/like`
 
 - 只删除当前用户的点赞。

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\GalleryPhotoController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\NextAdminReviewController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
+use App\Http\Controllers\Api\PhotoLikeController;
 use App\Http\Controllers\Api\PreparedPhotoUploadController;
 use App\Http\Controllers\Api\UndoAdminReviewController;
 use Illuminate\Support\Facades\Route;
@@ -49,3 +50,6 @@ Route::get('/photos/mine', CurrentUserPhotoController::class)
 Route::get('/gallery', GalleryPhotoController::class)
     ->middleware('user.token')
     ->name('gallery.index');
+Route::post('/photos/{photo}/like', PhotoLikeController::class)
+    ->middleware('user.token')
+    ->name('photos.like.store');
