@@ -19,10 +19,11 @@
   - 验收：接口能返回应用和数据库状态。
   - 实现：Laravel 13 项目已初始化；健康检查成功时返回 200，数据库不可用时返回 503。
 
-- [ ] **A02 创建 Vue 项目**
+- [x] **A02 创建 Vue 项目**
   - 初始化 Vue 3、Vite、TypeScript、Router、Pinia。
   - 建立 `/`、`/gallery`、`/draw`、`/admin/review` 空路由。
   - 验收：四个路由可以独立访问。
+  - 实现：Vue 已切换到 TypeScript 入口并注册 Router、Pinia；四个页面均支持直接访问和前端路由渲染。
 
 - [ ] **A03 配置本地 API 代理**
   - Vite 将 `/api` 转发到 Laravel。
