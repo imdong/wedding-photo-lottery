@@ -23,7 +23,8 @@ class PhotoTest extends TestCase
             ->for($user)
             ->create([
                 'object_key' => 'photos/1/original.jpg',
-                'file_hash' => str_repeat('a', 64),
+                'original_file_hash' => str_repeat('a', 64),
+                'upload_file_hash' => str_repeat('b', 64),
             ]);
 
         $this->assertModelExists($photo);
@@ -59,7 +60,8 @@ class PhotoTest extends TestCase
     {
         return [
             'object key' => ['object_key', 'photos/shared/original.jpg'],
-            'file hash' => ['file_hash', str_repeat('b', 64)],
+            'original file hash' => ['original_file_hash', str_repeat('b', 64)],
+            'upload file hash' => ['upload_file_hash', str_repeat('c', 64)],
         ];
     }
 }

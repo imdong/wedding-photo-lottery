@@ -4,21 +4,26 @@ import BaseButton from '../components/BaseButton.vue';
 import PageHeader from '../components/PageHeader.vue';
 import MobilePageShell from '../layouts/MobilePageShell.vue';
 import { calculateFileSha256 } from '../services/fileHash';
+import { preparePhotoUploads } from '../services/photoUploads';
 
-type HashStatus = 'hashing' | 'ready' | 'error';
+type PhotoStatus = 'hashing' | 'checking' | 'ready' | 'duplicate' | 'error';
 
 interface SelectedPhoto {
+    errorMessage: string;
     file: File;
-    hash: string;
     id: string;
-    status: HashStatus;
+    objectKey: string | null;
+    originalHash: string;
+    photoId: number | null;
+    status: PhotoStatus;
+    uploadHash: string;
 }
 
 const photoInput = ref<HTMLInputElement | null>(null);
 const selectedPhotos = ref<SelectedPhoto[]>([]);
 let selectionVersion = 0;
 
-const isHashing = computed(() => selectedPhotos.value.some((photo) => photo.status === 'hashing'));
+const isProcessing = computed(() => selectedPhotos.value.some((photo) => photo.status === 'hashing' || photo.status === 'checking'));
 
 function choosePhotos(): void {
     photoInput.value?.click();
@@ -30,10 +35,14 @@ async function handlePhotoSelection(event: Event): Promise<void> {
     const currentVersion = ++selectionVersion;
 
     selectedPhotos.value = files.map((file, index) => ({
+        errorMessage: '',
         file,
-        hash: '',
         id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+        objectKey: null,
+        originalHash: '',
+        photoId: null,
         status: 'hashing',
+        uploadHash: '',
     }));
     input.value = '';
 
@@ -45,13 +54,98 @@ async function handlePhotoSelection(event: Event): Promise<void> {
                 return;
             }
 
-            selectedPhotos.value[index] = { ...photo, hash, status: 'ready' };
+            selectedPhotos.value[index] = {
+                ...photo,
+                originalHash: hash,
+                status: 'checking',
+                uploadHash: hash,
+            };
         } catch {
             if (currentVersion !== selectionVersion) {
                 return;
             }
 
-            selectedPhotos.value[index] = { ...photo, status: 'error' };
+            selectedPhotos.value[index] = {
+                ...photo,
+                errorMessage: '无法读取这张照片，请重新选择后再试。',
+                status: 'error',
+            };
+        }
+    }
+
+    await prepareSelectedPhotos(currentVersion);
+}
+
+async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
+    const candidates = selectedPhotos.value
+        .map((photo, selectedIndex) => ({ photo, selectedIndex }))
+        .filter(({ photo }) => photo.status === 'checking');
+
+    if (candidates.length === 0) {
+        return;
+    }
+
+    try {
+        const preparation = await preparePhotoUploads(
+            candidates.map(({ photo }) => ({
+                file_size: photo.file.size,
+                filename: photo.file.name,
+                mime_type: photo.file.type,
+                original_file_hash: photo.originalHash,
+                upload_file_hash: photo.uploadHash,
+            })),
+        );
+
+        if (currentVersion !== selectionVersion) {
+            return;
+        }
+
+        for (const result of preparation.photos) {
+            const candidate = candidates[result.index];
+
+            if (candidate === undefined) {
+                continue;
+            }
+
+            const photo = selectedPhotos.value[candidate.selectedIndex];
+
+            if (photo === undefined) {
+                continue;
+            }
+
+            if (result.status === 'duplicate') {
+                selectedPhotos.value[candidate.selectedIndex] = {
+                    ...photo,
+                    status: 'duplicate',
+                };
+
+                continue;
+            }
+
+            selectedPhotos.value[candidate.selectedIndex] = {
+                ...photo,
+                objectKey: result.object_key,
+                photoId: result.photo_id,
+                status: 'ready',
+            };
+        }
+    } catch {
+        if (currentVersion !== selectionVersion) {
+            return;
+        }
+
+        for (const { selectedIndex } of candidates) {
+            const photo = selectedPhotos.value[selectedIndex];
+
+            if (photo === undefined) {
+                continue;
+            }
+
+            selectedPhotos.value[selectedIndex] = {
+                ...photo,
+                errorMessage: '暂时无法检查照片，请稍后重新选择。',
+                status: 'error',
+            };
         }
     }
 }
@@ -62,6 +156,34 @@ function formatFileSize(bytes: number): string {
     }
 
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function statusLabel(status: PhotoStatus): string {
+    const labels: Record<PhotoStatus, string> = {
+        hashing: '正在计算',
+        checking: '正在查重',
+        ready: '等待上传',
+        duplicate: '已存在 · 已跳过',
+        error: '处理失败',
+    };
+
+    return labels[status];
+}
+
+function statusClasses(status: PhotoStatus): string {
+    if (status === 'ready') {
+        return 'bg-sage-100 text-sage-600';
+    }
+
+    if (status === 'duplicate') {
+        return 'bg-gold-100 text-gold-500';
+    }
+
+    if (status === 'error') {
+        return 'bg-rose-100 text-rose-700';
+    }
+
+    return 'bg-gold-100 text-gold-500';
 }
 </script>
 
@@ -84,8 +206,8 @@ function formatFileSize(bytes: number): string {
                 @change="handlePhotoSelection"
             />
             <div class="mt-6">
-                <BaseButton full-width :disabled="isHashing" @click="choosePhotos">
-                    {{ isHashing ? '正在读取照片…' : selectedPhotos.length > 0 ? '重新选择照片' : '选择照片' }}
+                <BaseButton full-width :disabled="isProcessing" @click="choosePhotos">
+                    {{ isProcessing ? '正在处理照片…' : selectedPhotos.length > 0 ? '重新选择照片' : '选择照片' }}
                 </BaseButton>
             </div>
         </section>
@@ -109,23 +231,23 @@ function formatFileSize(bytes: number): string {
                     <span
                         :class="[
                             'shrink-0 rounded-pill px-3 py-1.5 text-xs font-semibold',
-                            photo.status === 'ready'
-                                ? 'bg-sage-100 text-sage-600'
-                                : photo.status === 'error'
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-gold-100 text-gold-500',
+                            statusClasses(photo.status),
                         ]"
                         role="status"
                         aria-live="polite"
                     >
-                        {{ photo.status === 'ready' ? '校验完成' : photo.status === 'error' ? '校验失败' : '正在计算' }}
+                        {{ statusLabel(photo.status) }}
                     </span>
                 </div>
 
-                <p v-if="photo.status === 'ready'" class="break-all rounded-control bg-canvas px-3 py-2 font-mono text-[0.68rem] leading-5 text-ink-500">
-                    SHA-256 · {{ photo.hash }}
+                <p
+                    v-if="photo.originalHash"
+                    class="break-all rounded-control bg-canvas px-3 py-2 font-mono text-[0.68rem] leading-5 text-ink-500"
+                >
+                    原始 SHA-256 · {{ photo.originalHash }}
                 </p>
-                <p v-else-if="photo.status === 'error'" class="text-xs leading-5 text-rose-700">无法读取这张照片，请重新选择后再试。</p>
+                <p v-if="photo.status === 'duplicate'" class="text-xs leading-5 text-gold-500">服务器中已有相同文件，本次上传将自动跳过。</p>
+                <p v-else-if="photo.status === 'error'" class="text-xs leading-5 text-rose-700">{{ photo.errorMessage }}</p>
             </article>
         </section>
 

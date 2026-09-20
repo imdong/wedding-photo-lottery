@@ -23,7 +23,8 @@ id
 user_id                     foreign key users.id
 object_key                  unique
 original_filename
-file_hash                   unique, SHA-256
+original_file_hash          unique, SHA-256，压缩前原始文件
+upload_file_hash            unique, SHA-256，实际上传文件
 mime_type
 file_size
 width                       nullable
@@ -169,19 +170,24 @@ unique(draw_round_id, position)
 
 ```json
 {
-  "file_hash": "sha256-hex",
-  "filename": "IMG_0012.JPG",
-  "mime_type": "image/jpeg",
-  "file_size": 12345678
+  "photos": [
+    {
+      "original_file_hash": "sha256-hex-before-compression",
+      "upload_file_hash": "sha256-hex-actually-uploaded",
+      "filename": "IMG_0012.JPG",
+      "mime_type": "image/jpeg",
+      "file_size": 12345678
+    }
+  ]
 }
 ```
 
 行为：
 
-- 校验类型和大小。
-- 检查哈希是否存在。
-- 创建或恢复 `preparing` 记录。
-- 返回照片 ID、Object Key 和 OSS 临时凭证。
+- 单次最多接收 20 张，逐项校验类型、大小和两个 SHA-256。
+- 原始哈希或实际上传哈希命中已有记录时返回 `duplicate` 和命中的哈希，不创建记录。
+- 同一批次中后出现的重复照片同样跳过。
+- 非重复项创建 `preparing` 记录并返回 `ready`、照片 ID 和 Object Key；顶层返回本批共用的 OSS 临时凭证。
 
 ### `POST /api/uploads/{photo}/complete`
 
@@ -336,4 +342,3 @@ user_total_weight
 ```
 
 禁止控制器、前端页面或 SQL 查询各自复制一套权重公式。
-
