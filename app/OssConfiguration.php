@@ -47,7 +47,11 @@ final readonly class OssConfiguration
 
         $temporaryCredentialTtlSeconds = config('oss.temporary_credential_ttl_seconds');
 
-        if (! is_int($temporaryCredentialTtlSeconds) || $temporaryCredentialTtlSeconds <= 0) {
+        if (
+            ! is_int($temporaryCredentialTtlSeconds)
+            || $temporaryCredentialTtlSeconds < 900
+            || $temporaryCredentialTtlSeconds > 3600
+        ) {
             $missingLabels[] = 'ALIYUN_OSS_TEMPORARY_CREDENTIAL_TTL_SECONDS';
         }
 

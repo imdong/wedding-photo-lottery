@@ -79,9 +79,10 @@
   - 验收：缺少配置时返回明确错误。
   - 实现：集中配置青岛地域、Bucket、外网/内网 Endpoint、默认 Bucket 域名、CNAME 展示域名、RAM Role ARN、STS Endpoint、临时凭证时长和上传目录；继续读取现有 `Ali_Key` / `Ali_Secret`，配置对象会汇总并明确报告缺失项。
 
-- [ ] **C03 实现 OSS 临时凭证服务**
+- [x] **C03 实现 OSS 临时凭证服务**
   - 限制上传目录和有效期。
   - 验收：浏览器可使用凭证上传测试文件。
+  - 实现：使用 STS AssumeRole 签发临时凭证，权限只允许 `wedding/photos/{用户 ID}/` 下的 `PutObject`，有效期限制为 15–60 分钟；已通过 Bucket 三级域名完成真实 OSS 上传验证。
 
 - [ ] **C04 实现客户端 SHA-256**
   - 选择图片后计算哈希并显示计算状态。

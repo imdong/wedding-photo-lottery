@@ -55,6 +55,19 @@ class OssConfigurationTest extends TestCase
         OssConfiguration::fromConfig();
     }
 
+    public function test_rejects_temporary_credential_ttl_above_the_application_limit(): void
+    {
+        config()->set('oss', [
+            ...$this->validConfiguration(),
+            'temporary_credential_ttl_seconds' => 3601,
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('ALIYUN_OSS_TEMPORARY_CREDENTIAL_TTL_SECONDS');
+
+        OssConfiguration::fromConfig();
+    }
+
     /** @return array<string, mixed> */
     private function validConfiguration(): array
     {

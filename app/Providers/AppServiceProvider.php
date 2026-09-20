@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\OssConfiguration;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(
+            OssConfiguration::class,
+            fn (): OssConfiguration => OssConfiguration::fromConfig(),
+        );
     }
 
     /**
