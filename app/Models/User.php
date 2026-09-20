@@ -27,4 +27,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(self::class, 'invited_by_user_id');
     }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(Photo::class);
+    }
 }

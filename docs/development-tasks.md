@@ -66,11 +66,12 @@
 
 ## C. 照片数据与 OSS
 
-- [ ] **C01 建立 photos 表**
+- [x] **C01 建立 photos 表**
   - 创建 Migration 和 Model。
   - 增加文件哈希和 Object Key 唯一索引。
   - 定义上传与审核状态。
   - 验收：可以创建 `preparing` 照片记录。
+  - 实现：新增照片表、模型、工厂和 Seeder；文件哈希与 Object Key 由数据库唯一约束保护，上传与审核状态使用字符串枚举并由模型自动转换，用户删除时级联清理照片。
 
 - [ ] **C02 增加 OSS 配置**
   - 增加 Bucket、Region、角色等环境变量。
