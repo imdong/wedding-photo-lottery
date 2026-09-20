@@ -32,4 +32,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Photo::class);
     }
+
+    /** @return HasMany<PhotoLike, $this> */
+    public function photoLikes(): HasMany
+    {
+        return $this->hasMany(PhotoLike::class);
+    }
 }

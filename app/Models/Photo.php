@@ -47,6 +47,12 @@ class Photo extends Model
         return $this->hasMany(AdminReviewLog::class);
     }
 
+    /** @return HasMany<PhotoLike, $this> */
+    public function likes(): HasMany
+    {
+        return $this->hasMany(PhotoLike::class);
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {
