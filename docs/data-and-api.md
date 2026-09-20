@@ -185,8 +185,9 @@ unique(draw_round_id, position)
 行为：
 
 - 单次最多接收 20 张，逐项校验类型、大小和两个 SHA-256。
-- 原始哈希或实际上传哈希命中已有记录时返回 `duplicate` 和命中的哈希，不创建记录。
-- 同一批次中后出现的重复照片同样跳过。
+- 在所有用户的照片中全局查重，不限定为当前用户。
+- 原始哈希和实际上传哈希会与已有记录的两个哈希交叉比较，任意命中时返回 `duplicate`，不创建记录。
+- 同一批次中后出现的交叉重复照片同样跳过。
 - 非重复项创建 `preparing` 记录并返回 `ready`、照片 ID 和 Object Key；顶层返回本批共用的 OSS 临时凭证。
 
 ### `POST /api/uploads/{photo}/complete`
@@ -202,7 +203,25 @@ unique(draw_round_id, position)
 
 ### `GET /api/photos/mine`
 
-返回当前用户的照片和上传、审核状态。
+返回当前用户的照片和上传、审核状态，按最新上传优先排列：
+
+```json
+{
+  "photos": [
+    {
+      "id": 10,
+      "original_filename": "IMG_0012.JPG",
+      "mime_type": "image/jpeg",
+      "file_size": 12345678,
+      "upload_status": "uploaded",
+      "review_status": "pending",
+      "created_at": "2026-09-20T08:00:00.000000Z"
+    }
+  ]
+}
+```
+
+不返回文件哈希、OSS Object Key 或其他用户的照片。
 
 ## 5. 照片墙与点赞接口
 

@@ -97,7 +97,7 @@ class PreparedPhotoUploadControllerTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_returns_matching_hashes_and_does_not_create_records_for_duplicates(): void
+    public function test_skips_cross_field_hash_matches_uploaded_by_another_user(): void
     {
         Http::fake([
             'https://sts.cn-qingdao.aliyuncs.com' => Http::response($this->stsResponse()),

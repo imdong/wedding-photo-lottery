@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CompletedPhotoUploadController;
 use App\Http\Controllers\Api\CurrentUserController;
+use App\Http\Controllers\Api\CurrentUserPhotoController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
 use App\Http\Controllers\Api\PreparedPhotoUploadController;
@@ -20,3 +21,6 @@ Route::post('/uploads/prepare', PreparedPhotoUploadController::class)
 Route::post('/uploads/{photo}/complete', CompletedPhotoUploadController::class)
     ->middleware('user.token')
     ->name('uploads.complete');
+Route::get('/photos/mine', CurrentUserPhotoController::class)
+    ->middleware('user.token')
+    ->name('photos.mine');

@@ -236,7 +236,7 @@ function statusLabel(photo: SelectedPhoto): string {
         ready: '处理中',
         confirming: '处理中',
         uploaded: '上传成功',
-        duplicate: '已跳过',
+        duplicate: '已存在，无需上传',
         error: '上传失败',
     };
 
@@ -320,8 +320,7 @@ function statusClasses(status: PhotoStatus): string {
                 <div v-if="photo.status === 'uploading'" class="h-1.5 overflow-hidden rounded-pill bg-rose-100" aria-hidden="true">
                     <div class="h-full rounded-pill bg-rose-600 transition-[width] duration-200" :style="{ width: `${photo.progress}%` }"></div>
                 </div>
-                <p v-if="photo.status === 'duplicate'" class="text-xs leading-5 text-gold-500">这张照片已经上传过，本次已跳过。</p>
-                <p v-else-if="photo.status === 'error'" class="text-xs leading-5 text-rose-700">{{ photo.errorMessage }}</p>
+                <p v-if="photo.status === 'error'" class="text-xs leading-5 text-rose-700">{{ photo.errorMessage }}</p>
             </article>
         </section>
 
