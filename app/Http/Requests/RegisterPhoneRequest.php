@@ -34,8 +34,8 @@ class RegisterPhoneRequest extends FormRequest
     {
         return [
             'phone.required' => '请输入手机号。',
-            'phone.string' => '请输入有效的中国大陆手机号。',
-            'phone.regex' => '请输入有效的中国大陆手机号。',
+            'phone.string' => '请输入有效的手机号。',
+            'phone.regex' => '请输入有效的手机号。',
         ];
     }
 }
