@@ -153,14 +153,11 @@ unique(draw_round_id, position)
   "uploaded_count": 6,
   "pending_count": 2,
   "approved_count": 3,
-  "rejected_count": 1,
-  "successful_invitation_count": 2,
-  "invitation_enabled": true,
-  "invitation_reward_enabled": true
+  "rejected_count": 1
 }
 ```
 
-不返回抽奖次数或用户总权重。
+只统计已上传成功的照片；`normal` 和 `good` 均计入通过数量。接口不返回抽奖次数或用户总权重。
 
 ## 4. 上传接口
 
@@ -280,6 +277,27 @@ unique(draw_round_id, position)
 ### `POST /api/admin/login`
 
 使用环境变量中的固定密码，返回短期管理员 Token。
+
+请求：
+
+```json
+{
+  "password": "configured-admin-password"
+}
+```
+
+响应：
+
+```json
+{
+  "token": "short-lived-admin-token",
+  "expires_at": "2026-09-20T20:00:00+00:00"
+}
+```
+
+### `GET /api/admin/session`
+
+使用管理员 Bearer Token 检查当前后台登录状态。除登录接口外，后续 `/api/admin/*` 后台接口均使用相同鉴权中间件。
 
 ### `GET /api/admin/reviews/next`
 

@@ -54,6 +54,13 @@ export interface CurrentUserPhoto {
     upload_status: 'preparing' | 'uploaded' | 'failed';
 }
 
+export interface CurrentUserPhotoStats {
+    approved_count: number;
+    pending_count: number;
+    rejected_count: number;
+    uploaded_count: number;
+}
+
 interface CurrentUserPhotoResponse {
     photos: CurrentUserPhoto[];
 }
@@ -74,4 +81,10 @@ export async function fetchCurrentUserPhotos(): Promise<CurrentUserPhoto[]> {
     const response = await api.get<CurrentUserPhotoResponse>('/photos/mine');
 
     return response.data.photos;
+}
+
+export async function fetchCurrentUserPhotoStats(): Promise<CurrentUserPhotoStats> {
+    const response = await api.get<CurrentUserPhotoStats>('/me/stats');
+
+    return response.data;
 }

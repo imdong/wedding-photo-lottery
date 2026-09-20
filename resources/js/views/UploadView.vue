@@ -9,9 +9,11 @@ import { calculateFileSha256 } from '../services/fileHash';
 import { uploadPhotoToOss } from '../services/ossUpload';
 import {
     completePhotoUpload,
+    fetchCurrentUserPhotoStats,
     fetchCurrentUserPhotos,
     preparePhotoUploads,
     type CurrentUserPhoto,
+    type CurrentUserPhotoStats,
     type OssTemporaryCredentials,
 } from '../services/photoUploads';
 import { useUserIdentityStore } from '../stores/userIdentity';
@@ -42,7 +44,10 @@ const photoInput = ref<HTMLInputElement | null>(null);
 const selectedPhotos = ref<SelectedPhoto[]>([]);
 const currentUserPhotos = ref<CurrentUserPhoto[]>([]);
 const photoListStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
+const photoStats = ref<CurrentUserPhotoStats | null>(null);
+const photoStatsStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const failedThumbnailIds = ref<Set<number>>(new Set());
+const isPhotoStatsVisible = false;
 let selectionVersion = 0;
 
 const isProcessing = computed(() =>
@@ -53,7 +58,7 @@ watch(
     () => userIdentity.isAuthenticated,
     (isAuthenticated) => {
         if (isAuthenticated) {
-            void loadCurrentUserPhotos();
+            void refreshUploadPage();
         }
     },
     { immediate: true },
@@ -228,7 +233,7 @@ async function uploadSelectedPhoto(selectedIndex: number, currentVersion: number
         }
 
         selectedPhotos.value[selectedIndex] = { ...confirmedPhoto, progress: 100, status: 'uploaded' };
-        await loadCurrentUserPhotos();
+        await refreshUploadPage();
     } catch {
         const failedPhoto = selectedPhotos.value[selectedIndex];
 
@@ -270,6 +275,27 @@ async function loadCurrentUserPhotos(): Promise<void> {
     } catch {
         photoListStatus.value = 'error';
     }
+}
+
+async function loadCurrentUserPhotoStats(): Promise<void> {
+    photoStatsStatus.value = 'loading';
+
+    try {
+        photoStats.value = await fetchCurrentUserPhotoStats();
+        photoStatsStatus.value = 'ready';
+    } catch {
+        photoStatsStatus.value = 'error';
+    }
+}
+
+async function refreshUploadPage(): Promise<void> {
+    const refreshRequests = [loadCurrentUserPhotos()];
+
+    if (isPhotoStatsVisible) {
+        refreshRequests.push(loadCurrentUserPhotoStats());
+    }
+
+    await Promise.all(refreshRequests);
 }
 
 function markThumbnailFailed(photoId: number): void {
@@ -373,6 +399,61 @@ function reviewStatusClasses(status: CurrentUserPhoto['review_status']): string 
                 <BaseButton full-width :disabled="isProcessing" @click="choosePhotos">
                     {{ isProcessing ? '正在处理照片…' : selectedPhotos.length > 0 ? '重新选择照片' : '选择照片' }}
                 </BaseButton>
+            </div>
+        </section>
+
+        <section
+            v-if="isPhotoStatsVisible"
+            class="rounded-card border border-white/80 bg-white/72 p-5 shadow-card backdrop-blur-sm"
+            aria-labelledby="photo-stats-title"
+        >
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h2 id="photo-stats-title" class="font-display text-xl font-semibold text-ink-950">上传记录</h2>
+                    <p class="text-xs text-ink-500">审核结果更新后可随时刷新</p>
+                </div>
+                <button
+                    type="button"
+                    class="min-h-10 rounded-pill px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-45"
+                    :disabled="photoStatsStatus === 'loading'"
+                    @click="loadCurrentUserPhotoStats"
+                >
+                    {{ photoStatsStatus === 'loading' ? '刷新中…' : '刷新' }}
+                </button>
+            </div>
+
+            <div v-if="photoStats === null && photoStatsStatus !== 'error'" class="grid min-h-28 place-items-center">
+                <LoadingState label="正在加载上传记录" />
+            </div>
+
+            <div v-else-if="photoStats === null" class="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
+                <p class="text-sm text-ink-500">上传记录暂时加载失败</p>
+                <BaseButton variant="secondary" @click="loadCurrentUserPhotoStats">重新加载</BaseButton>
+            </div>
+
+            <div v-else class="mt-5 flex flex-col gap-4" :aria-busy="photoStatsStatus === 'loading'">
+                <div class="flex items-end justify-between gap-4 rounded-control bg-rose-50 px-5 py-4">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-xs font-medium text-ink-500">上传成功</span>
+                        <strong class="font-display text-4xl leading-none font-semibold text-rose-700">{{ photoStats.uploaded_count }}</strong>
+                    </div>
+                    <span class="pb-1 text-sm font-medium text-ink-500">张照片</span>
+                </div>
+
+                <dl class="grid grid-cols-3 gap-2 text-center">
+                    <div class="rounded-control bg-gold-100/75 px-2 py-3">
+                        <dt class="text-[0.68rem] font-medium text-gold-500">待审核</dt>
+                        <dd class="mt-1 text-lg font-semibold text-ink-950">{{ photoStats.pending_count }}</dd>
+                    </div>
+                    <div class="rounded-control bg-sage-100 px-2 py-3">
+                        <dt class="text-[0.68rem] font-medium text-sage-600">已通过</dt>
+                        <dd class="mt-1 text-lg font-semibold text-ink-950">{{ photoStats.approved_count }}</dd>
+                    </div>
+                    <div class="rounded-control bg-canvas px-2 py-3">
+                        <dt class="text-[0.68rem] font-medium text-ink-500">未通过</dt>
+                        <dd class="mt-1 text-lg font-semibold text-ink-950">{{ photoStats.rejected_count }}</dd>
+                    </div>
+                </dl>
             </div>
         </section>
 

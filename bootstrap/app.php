@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthenticateAdminToken;
 use App\Http\Middleware\AuthenticateUserToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'admin.token' => AuthenticateAdminToken::class,
             'user.token' => AuthenticateUserToken::class,
         ]);
     })

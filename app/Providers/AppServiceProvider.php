@@ -28,6 +28,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('admin-login', function (Request $request): Limit {
+            return Limit::perMinute(5)
+                ->by((string) $request->ip())
+                ->response(fn (Request $request, array $headers): JsonResponse => response()->json([
+                    'message' => '管理员登录尝试过于频繁，请稍后再试。',
+                    'code' => 'too_many_requests',
+                ], Response::HTTP_TOO_MANY_REQUESTS, $headers));
+        });
+
         RateLimiter::for('phone-registration', function (Request $request): Limit {
             return Limit::perMinute(10)
                 ->by($request->string('phone')->trim()->toString().'|'.$request->ip())
