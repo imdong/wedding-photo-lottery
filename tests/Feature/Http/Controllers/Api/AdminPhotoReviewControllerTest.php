@@ -5,6 +5,7 @@ namespace Tests\Feature\Http\Controllers\Api;
 use App\AdminTokenService;
 use App\Enums\PhotoReviewStatus;
 use App\Enums\PhotoUploadStatus;
+use App\Models\AdminReviewLog;
 use App\Models\Photo;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -82,6 +83,12 @@ class AdminPhotoReviewControllerTest extends TestCase
         $this->assertSame(PhotoUploadStatus::Uploaded, $photo->upload_status);
         $this->assertSame($reviewStatus, $photo->review_status);
         $this->assertSame('2026-09-20T08:00:00.000000Z', $photo->reviewed_at?->toISOString());
+
+        $reviewLog = AdminReviewLog::query()->sole();
+        $this->assertSame($photo->id, $reviewLog->photo_id);
+        $this->assertSame(PhotoReviewStatus::Pending, $reviewLog->previous_status);
+        $this->assertSame($reviewStatus, $reviewLog->new_status);
+        $this->assertSame('2026-09-20T08:00:00.000000Z', $reviewLog->created_at?->toISOString());
     }
 
     #[DataProvider('incompleteUploadStatuses')]
@@ -103,6 +110,7 @@ class AdminPhotoReviewControllerTest extends TestCase
         $photo->refresh();
         $this->assertSame(PhotoReviewStatus::Pending, $photo->review_status);
         $this->assertNull($photo->reviewed_at);
+        $this->assertDatabaseCount('admin_review_logs', 0);
     }
 
     public function test_returns_409_when_photo_has_already_been_reviewed(): void
@@ -121,6 +129,7 @@ class AdminPhotoReviewControllerTest extends TestCase
         $photo->refresh();
         $this->assertSame(PhotoReviewStatus::Good, $photo->review_status);
         $this->assertSame('2026-09-20T07:00:00.000000Z', $photo->reviewed_at?->toISOString());
+        $this->assertDatabaseCount('admin_review_logs', 0);
     }
 
     /** @return array<string, array{array<string, mixed>, string}> */

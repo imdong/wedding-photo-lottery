@@ -354,6 +354,8 @@ unique(draw_round_id, position)
 
 只有上传成功且当前仍为 `pending` 的照片可以审核。重复审核、尚未完成上传或上传失败时返回 `409 photo_not_pending_review`。
 
+每次成功审核都会在同一数据库事务内写入一条 `admin_review_logs` 记录，保存原状态和新状态。
+
 照片首次变为 `normal` 或 `good` 时，检查被邀请人对应邀请记录是否应变为 `qualified`。
 
 ### `POST /api/admin/reviews/undo`
