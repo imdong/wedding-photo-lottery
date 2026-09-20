@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isAxiosError } from 'axios';
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import LoadingState from '../components/LoadingState.vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -39,7 +39,12 @@ const isSubmittingReview = ref(false);
 const hasImageError = ref(false);
 
 onMounted(() => {
+    window.addEventListener('keydown', handleReviewShortcut);
     void restoreAdminSession();
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleReviewShortcut);
 });
 
 async function restoreAdminSession(): Promise<void> {
@@ -150,7 +155,7 @@ async function submitReview(reviewStatus: AdminPhotoReviewStatus): Promise<void>
 }
 
 async function undoLatestReview(): Promise<void> {
-    if (isSubmittingReview.value || adminToken.value === '') {
+    if (isSubmittingReview.value || reviewQueueStatus.value === 'loading' || adminToken.value === '') {
         return;
     }
 
@@ -173,6 +178,49 @@ async function undoLatestReview(): Promise<void> {
     } finally {
         isSubmittingReview.value = false;
     }
+}
+
+function handleReviewShortcut(event: KeyboardEvent): void {
+    if (
+        event.repeat
+        || event.ctrlKey
+        || event.metaKey
+        || event.altKey
+        || authenticationStatus.value !== 'authenticated'
+        || isSubmittingReview.value
+        || reviewQueueStatus.value === 'loading'
+        || isEditableElement(event.target)
+    ) {
+        return;
+    }
+
+    const reviewShortcuts: Record<string, AdminPhotoReviewStatus> = {
+        '1': 'normal',
+        '2': 'good',
+        '3': 'rejected',
+    };
+    const reviewStatus = reviewShortcuts[event.key];
+
+    if (reviewStatus !== undefined) {
+        if (currentPhoto.value === null || hasImageError.value) {
+            return;
+        }
+
+        event.preventDefault();
+        void submitReview(reviewStatus);
+
+        return;
+    }
+
+    if (event.key.toLowerCase() === 'u') {
+        event.preventDefault();
+        void undoLatestReview();
+    }
+}
+
+function isEditableElement(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement
+        && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 }
 
 function expireAdminSession(): void {
@@ -308,21 +356,51 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                 </div>
 
                 <div class="flex flex-col gap-3">
-                    <p class="text-sm font-semibold text-ink-700">审核操作</p>
-                    <BaseButton full-width :disabled="currentPhoto === null || isSubmittingReview || hasImageError" @click="submitReview('good')">
-                        好 · 2 倍权重
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold text-ink-700">审核操作</p>
+                        <span class="text-xs text-ink-500">可直接按键</span>
+                    </div>
+                    <BaseButton
+                        full-width
+                        variant="secondary"
+                        aria-keyshortcuts="1"
+                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                        @click="submitReview('normal')"
+                    >
+                        <span>普通 · 1 倍权重</span>
+                        <kbd class="rounded-md bg-rose-50 px-2 py-0.5 font-sans text-xs text-rose-700">1</kbd>
                     </BaseButton>
-                    <BaseButton full-width variant="secondary" :disabled="currentPhoto === null || isSubmittingReview || hasImageError" @click="submitReview('normal')">
-                        普通 · 1 倍权重
+                    <BaseButton
+                        full-width
+                        aria-keyshortcuts="2"
+                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                        @click="submitReview('good')"
+                    >
+                        <span>好 · 2 倍权重</span>
+                        <kbd class="rounded-md bg-white/18 px-2 py-0.5 font-sans text-xs text-white">2</kbd>
                     </BaseButton>
-                    <BaseButton full-width variant="quiet" :disabled="currentPhoto === null || isSubmittingReview || hasImageError" @click="submitReview('rejected')">
-                        不要 · 不参与抽奖
+                    <BaseButton
+                        full-width
+                        variant="quiet"
+                        aria-keyshortcuts="3"
+                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                        @click="submitReview('rejected')"
+                    >
+                        <span>不要 · 不参与抽奖</span>
+                        <kbd class="rounded-md bg-white/70 px-2 py-0.5 font-sans text-xs text-ink-700">3</kbd>
                     </BaseButton>
                 </div>
 
                 <div class="flex flex-col gap-3 border-t border-rose-100 pt-5">
-                    <BaseButton full-width variant="secondary" :disabled="isSubmittingReview" @click="undoLatestReview">
-                        撤销最近一次审核
+                    <BaseButton
+                        full-width
+                        variant="secondary"
+                        aria-keyshortcuts="U"
+                        :disabled="isSubmittingReview || reviewQueueStatus === 'loading'"
+                        @click="undoLatestReview"
+                    >
+                        <span>撤销最近一次审核</span>
+                        <kbd class="rounded-md bg-rose-50 px-2 py-0.5 font-sans text-xs text-rose-700">U</kbd>
                     </BaseButton>
                     <p v-if="actionMessage" class="text-center text-sm text-sage-600" role="status">{{ actionMessage }}</p>
                     <p v-if="actionError" class="text-center text-sm text-rose-700" role="alert">{{ actionError }}</p>
