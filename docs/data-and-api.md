@@ -93,9 +93,7 @@ id
 draw_round_id               foreign key draw_rounds.id
 user_id                     foreign key users.id
 photo_id                    foreign key photos.id
-source                      photo / invitation
-user_weight                 integer
-photo_weight                integer
+photo_weight                decimal
 position
 created_at
 
@@ -413,32 +411,26 @@ unique(draw_round_id, position)
 
 创建一轮抽奖并冻结候选快照。抽取人数从服务端配置读取。
 
-快照至少包含：
+快照至少包含抽奖时冻结的照片权重：
 
 ```json
 {
-  "users": [
+  "photos": [
     {
+      "photo_id": 10,
       "user_id": 1,
       "phone_suffix": "1234",
-      "photo_weight": 340,
-      "invitation_weight": 100,
-      "total_weight": 440,
-      "photos": [
-        {
-          "photo_id": 10,
-          "draw_url": "https://...",
-          "weight": 240,
-          "review_status": "good",
-          "valid_like_count": 20
-        }
-      ]
+      "draw_url": "https://...",
+      "weight": 2.037171,
+      "lottery_status": "featured",
+      "effective_likes": 2.5,
+      "like_bonus": 0.237171
     }
   ]
 }
 ```
 
-权重使用放大 100 倍后的整数。
+前端直接使用快照中的权重，不重新计算审核或点赞规则。每次选出照片后，从候选池移除相同 `user_id` 的全部照片，保证一个手机号最多中奖一次。
 
 ### `GET /api/draw-rounds/{round}`
 
@@ -462,13 +454,10 @@ unique(draw_round_id, position)
 权重逻辑必须集中在后端单一服务中，并提供计算明细：
 
 ```text
-valid_like_count
-base_weight
-review_multiplier
+lottery_status
+effective_likes
+like_bonus
 photo_weight
-qualified_invitation_count
-invitation_weight
-user_total_weight
 ```
 
-禁止控制器、前端页面或 SQL 查询各自复制一套权重公式。
+`effective_likes` 是抽奖时按点赞人当前状态计算的贡献总和，上限为 16；点赞时不保存倍率快照。禁止控制器、前端页面或 SQL 查询各自复制一套权重公式。
