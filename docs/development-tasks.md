@@ -73,10 +73,11 @@
   - 验收：可以创建 `preparing` 照片记录。
   - 实现：新增照片表、模型、工厂和 Seeder；文件哈希与 Object Key 由数据库唯一约束保护，上传与审核状态使用字符串枚举并由模型自动转换，用户删除时级联清理照片。
 
-- [ ] **C02 增加 OSS 配置**
+- [x] **C02 增加 OSS 配置**
   - 增加 Bucket、Region、角色等环境变量。
   - 建立 Laravel OSS 配置文件。
   - 验收：缺少配置时返回明确错误。
+  - 实现：集中配置青岛地域、Bucket、外网/内网 Endpoint、默认 Bucket 域名、CNAME 展示域名、RAM Role ARN、STS Endpoint、临时凭证时长和上传目录；继续读取现有 `Ali_Key` / `Ali_Secret`，配置对象会汇总并明确报告缺失项。
 
 - [ ] **C03 实现 OSS 临时凭证服务**
   - 限制上传目录和有效期。
