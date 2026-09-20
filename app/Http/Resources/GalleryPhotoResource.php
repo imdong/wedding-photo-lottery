@@ -22,10 +22,16 @@ class GalleryPhotoResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $isMine = $request->user()?->getAuthIdentifier() === $this->user_id;
+
         return [
             'id' => $this->id,
             'thumbnail_url' => $this->imageUrlGenerator->thumbnail($this->object_key),
             'preview_url' => $this->imageUrlGenerator->gallery($this->object_key),
+            'like_count' => (int) $this->like_count,
+            'liked_by_me' => ! $isMine && (bool) $this->liked_by_me,
+            'is_mine' => $isMine,
+            'can_like' => ! $isMine,
             'created_at' => $this->created_at->toISOString(),
         ];
     }

@@ -4,7 +4,7 @@ import BaseButton from '../components/BaseButton.vue';
 import LoadingState from '../components/LoadingState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import MobilePageShell from '../layouts/MobilePageShell.vue';
-import { fetchGalleryPhotos, type GalleryPhoto } from '../services/galleryPhotos';
+import { fetchGalleryPhotos, updatePhotoLike, type GalleryPhoto } from '../services/galleryPhotos';
 import { useUserIdentityStore } from '../stores/userIdentity';
 
 type GalleryStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -19,6 +19,8 @@ const loadMoreError = ref('');
 const failedThumbnailIds = ref<Set<number>>(new Set());
 const selectedPhoto = ref<GalleryPhoto | null>(null);
 const hasPreviewError = ref(false);
+const pendingLikePhotoIds = ref<Set<number>>(new Set());
+const likeError = ref('');
 
 watch(
     () => userIdentity.isAuthenticated,
@@ -87,6 +89,8 @@ function resetGallery(): void {
     galleryStatus.value = 'idle';
     loadMoreError.value = '';
     selectedPhoto.value = null;
+    pendingLikePhotoIds.value = new Set();
+    likeError.value = '';
 }
 
 function openPreview(photo: GalleryPhoto): void {
@@ -101,6 +105,46 @@ function closePreview(): void {
 
 function markThumbnailFailed(photoId: number): void {
     failedThumbnailIds.value = new Set([...failedThumbnailIds.value, photoId]);
+}
+
+async function togglePhotoLike(photo: GalleryPhoto): Promise<void> {
+    if (!photo.can_like || pendingLikePhotoIds.value.has(photo.id)) {
+        return;
+    }
+
+    const previousLiked = photo.liked_by_me;
+    const previousCount = photo.like_count;
+    const nextLiked = !previousLiked;
+    const nextCount = Math.max(0, previousCount + (nextLiked ? 1 : -1));
+
+    likeError.value = '';
+    pendingLikePhotoIds.value = new Set([...pendingLikePhotoIds.value, photo.id]);
+    updatePhotoLikeState(photo.id, nextLiked, nextCount);
+
+    try {
+        await updatePhotoLike(photo.id, nextLiked);
+    } catch {
+        updatePhotoLikeState(photo.id, previousLiked, previousCount);
+        likeError.value = '点赞操作失败，请稍后重试。';
+    } finally {
+        const pendingIds = new Set(pendingLikePhotoIds.value);
+        pendingIds.delete(photo.id);
+        pendingLikePhotoIds.value = pendingIds;
+    }
+}
+
+function updatePhotoLikeState(photoId: number, liked: boolean, likeCount: number): void {
+    photos.value = photos.value.map((photo) => photo.id === photoId
+        ? { ...photo, liked_by_me: liked, like_count: likeCount }
+        : photo);
+
+    if (selectedPhoto.value?.id === photoId) {
+        selectedPhoto.value = {
+            ...selectedPhoto.value,
+            liked_by_me: liked,
+            like_count: likeCount,
+        };
+    }
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -156,25 +200,52 @@ function handleKeydown(event: KeyboardEvent): void {
 
         <template v-else>
             <section class="grid grid-cols-2 gap-3" aria-label="婚礼照片墙">
-                <button
+                <article
                     v-for="photo in photos"
                     :key="photo.id"
-                    type="button"
-                    class="group relative aspect-square overflow-hidden rounded-card border border-white/80 bg-rose-50 text-left shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-                    @click="openPreview(photo)"
+                    class="relative aspect-square overflow-hidden rounded-card border border-white/80 bg-rose-50 shadow-card"
                 >
-                    <img
-                        v-if="!failedThumbnailIds.has(photo.id)"
-                        :src="photo.thumbnail_url"
-                        alt="婚礼现场照片"
-                        class="size-full object-cover transition duration-300 group-active:scale-[1.02]"
-                        loading="lazy"
-                        decoding="async"
-                        @error="markThumbnailFailed(photo.id)"
-                    />
-                    <span v-else class="grid size-full place-items-center px-3 text-center text-xs text-ink-500">照片加载失败</span>
+                    <button
+                        type="button"
+                        class="group block size-full text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-500"
+                        aria-label="查看婚礼照片大图"
+                        @click="openPreview(photo)"
+                    >
+                        <img
+                            v-if="!failedThumbnailIds.has(photo.id)"
+                            :src="photo.thumbnail_url"
+                            alt="婚礼现场照片"
+                            class="size-full object-cover transition duration-300 group-active:scale-[1.02]"
+                            loading="lazy"
+                            decoding="async"
+                            @error="markThumbnailFailed(photo.id)"
+                        />
+                        <span v-else class="grid size-full place-items-center px-3 text-center text-xs text-ink-500">照片加载失败</span>
+                    </button>
                     <span class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/25" aria-hidden="true"></span>
-                </button>
+
+                    <span
+                        v-if="photo.is_mine"
+                        class="absolute right-2 bottom-2 rounded-pill bg-ink-950/58 px-2.5 py-1.5 text-[0.68rem] font-semibold text-white backdrop-blur-sm"
+                    >
+                        我的照片
+                    </span>
+                    <button
+                        v-else
+                        type="button"
+                        :class="[
+                            'absolute right-2 bottom-2 inline-flex min-h-9 items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-65',
+                            photo.liked_by_me ? 'bg-rose-600 text-white' : 'bg-white/88 text-ink-700',
+                        ]"
+                        :disabled="pendingLikePhotoIds.has(photo.id)"
+                        :aria-label="photo.liked_by_me ? '取消点赞' : '点赞'"
+                        :aria-pressed="photo.liked_by_me"
+                        @click="togglePhotoLike(photo)"
+                    >
+                        <span aria-hidden="true">♥</span>
+                        <span>{{ photo.like_count }}</span>
+                    </button>
+                </article>
             </section>
 
             <section class="flex flex-col items-center gap-3 text-center">
@@ -183,6 +254,7 @@ function handleKeydown(event: KeyboardEvent): void {
                     <span v-else>继续加载</span>
                 </BaseButton>
                 <p v-if="loadMoreError" class="text-sm text-rose-700" role="alert">{{ loadMoreError }}</p>
+                <p v-if="likeError" class="text-sm text-rose-700" role="alert">{{ likeError }}</p>
                 <p v-else-if="!hasMore" class="text-xs text-ink-500">已经看完全部照片啦</p>
             </section>
         </template>
@@ -212,6 +284,26 @@ function handleKeydown(event: KeyboardEvent): void {
                     class="max-h-full max-w-full rounded-control object-contain shadow-2xl"
                     @error="hasPreviewError = true"
                 />
+                <span
+                    v-if="!hasPreviewError && selectedPhoto.is_mine"
+                    class="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-pill bg-white/16 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md"
+                >
+                    我的照片 · {{ selectedPhoto.like_count }} 个赞
+                </span>
+                <button
+                    v-else-if="!hasPreviewError"
+                    type="button"
+                    :class="[
+                        'absolute bottom-5 left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-pill px-5 py-2.5 text-sm font-semibold shadow-lg backdrop-blur-md transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-wait disabled:opacity-65',
+                        selectedPhoto.liked_by_me ? 'bg-rose-600 text-white' : 'bg-white/90 text-ink-950',
+                    ]"
+                    :disabled="pendingLikePhotoIds.has(selectedPhoto.id)"
+                    :aria-pressed="selectedPhoto.liked_by_me"
+                    @click="togglePhotoLike(selectedPhoto)"
+                >
+                    <span aria-hidden="true">♥</span>
+                    <span>{{ selectedPhoto.liked_by_me ? '已点赞' : '点赞' }} · {{ selectedPhoto.like_count }}</span>
+                </button>
                 <div v-else class="flex max-w-xs flex-col items-center gap-4 rounded-card bg-paper p-6 text-center shadow-shell">
                     <span class="grid size-14 place-items-center rounded-full bg-rose-50 text-xl text-rose-600" aria-hidden="true">!</span>
                     <p class="text-sm leading-6 text-ink-700">大图暂时加载失败，请稍后重试。</p>

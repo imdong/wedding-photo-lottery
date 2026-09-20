@@ -7,7 +7,9 @@ use App\Enums\PhotoUploadStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\GalleryPhotoResource;
 use App\Models\Photo;
+use App\Models\User;
 use App\OssImageUrlGenerator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -17,7 +19,18 @@ class GalleryPhotoController extends Controller
 
     public function __invoke(Request $request, OssImageUrlGenerator $imageUrlGenerator): JsonResponse
     {
+        /** @var User $user */
+        $user = $request->user();
+
         $photos = Photo::query()
+            ->withCount([
+                'likes as like_count' => fn (Builder $query): Builder => $query
+                    ->whereColumn('photo_likes.user_id', '!=', 'photos.user_id'),
+            ])
+            ->withExists([
+                'likes as liked_by_me' => fn (Builder $query): Builder => $query
+                    ->where('user_id', $user->id),
+            ])
             ->where('upload_status', PhotoUploadStatus::Uploaded)
             ->whereIn('review_status', [
                 PhotoReviewStatus::Normal->value,

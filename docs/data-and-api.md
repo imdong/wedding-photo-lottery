@@ -243,6 +243,10 @@ unique(draw_round_id, position)
       "id": 10,
       "thumbnail_url": "https://...",
       "preview_url": "https://...",
+      "like_count": 8,
+      "liked_by_me": true,
+      "is_mine": false,
+      "can_like": true,
       "created_at": "2026-09-19T12:00:00+08:00"
     }
   ],
@@ -251,7 +255,7 @@ unique(draw_round_id, position)
 }
 ```
 
-点赞数量、当前用户点赞状态以及是否允许点赞将在点赞功能中扩展。
+`like_count` 只统计非照片上传者产生的有效点赞。自己的照片固定返回 `liked_by_me=false`、`can_like=false`，即使数据库中意外存在本人点赞记录也不会计入数量。
 
 ### `POST /api/photos/{photo}/like`
 
@@ -274,6 +278,15 @@ unique(draw_round_id, position)
 
 - 只删除当前用户的点赞。
 - 重复调用保持幂等。
+
+无论点赞是否原本存在，都返回：
+
+```json
+{
+  "photo_id": 10,
+  "liked": false
+}
+```
 
 ## 6. 邀请接口
 
