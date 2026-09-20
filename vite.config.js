@@ -24,6 +24,12 @@ export default defineConfig({
         strictPort: true,
         origin: 'http://localhost:39538',
         allowedHosts: ['localhost'],
+        proxy: {
+            '/api': {
+                target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000',
+                changeOrigin: true,
+            },
+        },
         hmr: {
             host: 'localhost',
             clientPort: 39538,

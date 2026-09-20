@@ -56,6 +56,7 @@ services:
       - "5173"
     environment:
       APP_URL: http://localhost:39538
+      VITE_API_PROXY_TARGET: http://app:8000
     volumes:
       - .:/var/www/html
       - node-modules-data:/var/www/html/node_modules
