@@ -197,7 +197,7 @@ function handleReviewShortcut(event: KeyboardEvent): void {
     const reviewShortcuts: Record<string, AdminPhotoReviewStatus> = {
         '1': 'normal',
         '2': 'good',
-        '3': 'rejected',
+        '0': 'rejected',
     };
     const reviewStatus = reviewShortcuts[event.key];
 
@@ -358,37 +358,42 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                 <div class="flex flex-col gap-3">
                     <div class="flex items-center justify-between gap-3">
                         <p class="text-sm font-semibold text-ink-700">审核操作</p>
-                        <span class="text-xs text-ink-500">可直接按键</span>
+                        <span class="hidden text-xs text-ink-500 lg:inline">可直接按键</span>
                     </div>
-                    <BaseButton
-                        full-width
-                        variant="secondary"
-                        aria-keyshortcuts="1"
-                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
-                        @click="submitReview('normal')"
-                    >
-                        <span>普通 · 1 倍权重</span>
-                        <kbd class="rounded-md bg-rose-50 px-2 py-0.5 font-sans text-xs text-rose-700">1</kbd>
-                    </BaseButton>
-                    <BaseButton
-                        full-width
-                        aria-keyshortcuts="2"
-                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
-                        @click="submitReview('good')"
-                    >
-                        <span>好 · 2 倍权重</span>
-                        <kbd class="rounded-md bg-white/18 px-2 py-0.5 font-sans text-xs text-white">2</kbd>
-                    </BaseButton>
-                    <BaseButton
-                        full-width
-                        variant="quiet"
-                        aria-keyshortcuts="3"
-                        :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
-                        @click="submitReview('rejected')"
-                    >
-                        <span>不要 · 不参与抽奖</span>
-                        <kbd class="rounded-md bg-white/70 px-2 py-0.5 font-sans text-xs text-ink-700">3</kbd>
-                    </BaseButton>
+                    <div class="grid grid-cols-3 gap-2 lg:flex lg:flex-col lg:gap-3">
+                        <BaseButton
+                            full-width
+                            variant="secondary"
+                            aria-keyshortcuts="1"
+                            :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                            @click="submitReview('normal')"
+                        >
+                            <span class="lg:hidden">普通</span>
+                            <span class="hidden lg:inline">普通 · 1 倍权重</span>
+                            <kbd class="hidden rounded-md bg-rose-50 px-2 py-0.5 font-sans text-xs text-rose-700 lg:inline">1</kbd>
+                        </BaseButton>
+                        <BaseButton
+                            full-width
+                            aria-keyshortcuts="2"
+                            :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                            @click="submitReview('good')"
+                        >
+                            <span class="lg:hidden">好</span>
+                            <span class="hidden lg:inline">好 · 2 倍权重</span>
+                            <kbd class="hidden rounded-md bg-white/18 px-2 py-0.5 font-sans text-xs text-white lg:inline">2</kbd>
+                        </BaseButton>
+                        <BaseButton
+                            full-width
+                            variant="quiet"
+                            aria-keyshortcuts="3"
+                            :disabled="currentPhoto === null || isSubmittingReview || hasImageError"
+                            @click="submitReview('rejected')"
+                        >
+                            <span class="lg:hidden">不要</span>
+                            <span class="hidden lg:inline">不要 · 不参与抽奖</span>
+                            <kbd class="hidden rounded-md bg-white/70 px-2 py-0.5 font-sans text-xs text-ink-700 lg:inline">0</kbd>
+                        </BaseButton>
+                    </div>
                 </div>
 
                 <div class="flex flex-col gap-3 border-t border-rose-100 pt-5">
