@@ -6,4 +6,62 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Songti SC', 'STSong', 'Noto Serif CJK SC', ui-serif, Georgia, serif;
+
+    --color-paper: #fffaf5;
+    --color-canvas: #f4ece5;
+    --color-ink-950: #352a2d;
+    --color-ink-700: #5f5053;
+    --color-ink-500: #88777a;
+    --color-rose-50: #fff1f2;
+    --color-rose-100: #fbe1e4;
+    --color-rose-300: #e7a9b1;
+    --color-rose-500: #bd6b78;
+    --color-rose-600: #a85563;
+    --color-rose-700: #87414d;
+    --color-gold-100: #f6ead1;
+    --color-gold-300: #dfc28f;
+    --color-gold-500: #b98c4c;
+    --color-sage-100: #e9eee6;
+    --color-sage-600: #66775f;
+
+    --radius-card: 1.75rem;
+    --radius-control: 1rem;
+    --radius-pill: 999px;
+
+    --spacing-page-mobile: 1.25rem;
+    --spacing-page-desktop: 2rem;
+    --spacing-section: 1.5rem;
+
+    --shadow-card: 0 18px 50px rgb(89 59 64 / 0.1);
+    --shadow-shell: 0 24px 80px rgb(89 59 64 / 0.14);
+}
+
+@layer base {
+    :root {
+        color: var(--color-ink-950);
+        font-family: var(--font-sans);
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+    }
+
+    html {
+        background: var(--color-canvas);
+    }
+
+    body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background: var(--color-canvas);
+    }
+
+    button,
+    a {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+        font: inherit;
+    }
 }
