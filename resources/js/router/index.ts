@@ -5,11 +5,13 @@ const routes: RouteRecordRaw[] = [
         path: '/',
         name: 'upload',
         component: () => import('../views/UploadView.vue'),
+        meta: { keepAlive: true },
     },
     {
         path: '/gallery',
         name: 'gallery',
         component: () => import('../views/GalleryView.vue'),
+        meta: { keepAlive: true },
     },
     {
         path: '/draw',

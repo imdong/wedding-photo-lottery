@@ -4,6 +4,11 @@ import { RouterView } from 'vue-router';
 
 <template>
     <div class="min-h-screen bg-canvas text-ink-950 antialiased selection:bg-rose-100 selection:text-rose-700">
-        <RouterView />
+        <RouterView v-slot="{ Component, route }">
+            <KeepAlive>
+                <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+            </KeepAlive>
+            <component :is="Component" v-if="!route.meta.keepAlive" :key="route.name" />
+        </RouterView>
     </div>
 </template>
