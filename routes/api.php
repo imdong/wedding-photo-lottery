@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminAuthenticationController;
+use App\Http\Controllers\Api\AdminPhotoReviewController;
 use App\Http\Controllers\Api\CompletedPhotoUploadController;
 use App\Http\Controllers\Api\CurrentAdminSessionController;
 use App\Http\Controllers\Api\CurrentUserController;
@@ -21,6 +22,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::middleware('admin.token')->group(function (): void {
         Route::get('/session', CurrentAdminSessionController::class)->name('session.show');
         Route::get('/reviews/next', NextAdminReviewController::class)->name('reviews.next');
+        Route::post('/photos/{photo}/review', AdminPhotoReviewController::class)->name('photos.review');
     });
 });
 Route::post('/auth/phone', PhoneAuthenticationController::class)
