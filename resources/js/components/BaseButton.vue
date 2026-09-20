@@ -2,16 +2,19 @@
 import { computed } from 'vue';
 
 type ButtonVariant = 'primary' | 'secondary' | 'quiet';
+type ButtonType = 'button' | 'submit';
 
 const props = withDefaults(
     defineProps<{
         disabled?: boolean;
         fullWidth?: boolean;
+        nativeType?: ButtonType;
         variant?: ButtonVariant;
     }>(),
     {
         disabled: false,
         fullWidth: false,
+        nativeType: 'button',
         variant: 'primary',
     },
 );
@@ -30,7 +33,7 @@ const variantClasses = computed(() => {
 
 <template>
     <button
-        type="button"
+        :type="nativeType"
         :disabled="disabled"
         :class="[
             'inline-flex min-h-12 items-center justify-center gap-2 rounded-pill px-6 py-3 text-sm font-semibold tracking-wide transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45',

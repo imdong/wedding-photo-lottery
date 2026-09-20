@@ -1,5 +1,14 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
+import PhoneRegistrationModal from '../components/PhoneRegistrationModal.vue';
+import { useUserIdentityStore } from '../stores/userIdentity';
+
+const userIdentity = useUserIdentityStore();
+
+onMounted(() => {
+    void userIdentity.restoreIdentity();
+});
 </script>
 
 <template>
@@ -51,6 +60,8 @@ import { RouterLink } from 'vue-router';
                     </RouterLink>
                 </div>
             </nav>
+
+            <PhoneRegistrationModal />
         </div>
     </div>
 </template>
