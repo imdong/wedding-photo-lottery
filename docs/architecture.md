@@ -76,9 +76,10 @@ https://photo.example.com/api/      Laravel API
   → 后端检查文件哈希并创建 preparing 记录
   → 返回 OSS 临时凭证和 objectKey
   → 浏览器直传 OSS
-  → POST /api/uploads/{photo}/complete
+  → 当前照片上传成功后立即 POST /api/uploads/{photo}/complete
   → 后端确认 OSS 对象存在
   → 标记 uploaded + pending
+  → 再处理下一张照片
 ```
 
 建议 Object Key：
@@ -193,4 +194,3 @@ OSS 的 Bucket、Region、临时凭证角色等信息使用独立环境变量保
 - 抽奖快照生成后数据保持不变
 - 同一轮和跨轮中奖排除规则
 - 刷新抽奖页后的结果恢复
-

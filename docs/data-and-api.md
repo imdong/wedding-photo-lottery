@@ -196,7 +196,9 @@ unique(draw_round_id, position)
 - 校验照片属于当前用户。
 - 确认 OSS 对象存在。
 - 将上传状态改为 `uploaded`，审核状态设为 `pending`。
-- 更新关联邀请为 `uploaded`。
+- 已完成的照片再次提交时直接返回成功。
+- OSS 对象不存在时返回冲突状态，不完成登记。
+- 客户端应在每一张照片上传成功后立即调用，不等待整批照片上传结束。
 
 ### `GET /api/photos/mine`
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CompletedPhotoUploadController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
@@ -16,3 +17,6 @@ Route::get('/me', CurrentUserController::class)
 Route::post('/uploads/prepare', PreparedPhotoUploadController::class)
     ->middleware('user.token')
     ->name('uploads.prepare');
+Route::post('/uploads/{photo}/complete', CompletedPhotoUploadController::class)
+    ->middleware('user.token')
+    ->name('uploads.complete');

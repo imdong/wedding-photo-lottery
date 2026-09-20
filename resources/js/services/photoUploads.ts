@@ -41,8 +41,20 @@ export interface PhotoPreparationResponse {
     photos: Array<ReadyPhotoPreparation | DuplicatePhotoPreparation>;
 }
 
+interface CompletedPhotoUpload {
+    id: number;
+    review_status: 'pending';
+    upload_status: 'uploaded';
+}
+
 export async function preparePhotoUploads(photos: PhotoPreparationInput[]): Promise<PhotoPreparationResponse> {
     const response = await api.post<PhotoPreparationResponse>('/uploads/prepare', { photos }, { timeout: 10_000 });
+
+    return response.data;
+}
+
+export async function completePhotoUpload(photoId: number): Promise<CompletedPhotoUpload> {
+    const response = await api.post<CompletedPhotoUpload>(`/uploads/${photoId}/complete`);
 
     return response.data;
 }

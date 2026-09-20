@@ -4,9 +4,10 @@ import BaseButton from '../components/BaseButton.vue';
 import PageHeader from '../components/PageHeader.vue';
 import MobilePageShell from '../layouts/MobilePageShell.vue';
 import { calculateFileSha256 } from '../services/fileHash';
-import { preparePhotoUploads } from '../services/photoUploads';
+import { uploadPhotoToOss } from '../services/ossUpload';
+import { completePhotoUpload, preparePhotoUploads, type OssTemporaryCredentials } from '../services/photoUploads';
 
-type PhotoStatus = 'hashing' | 'checking' | 'ready' | 'duplicate' | 'error';
+type PhotoStatus = 'hashing' | 'checking' | 'ready' | 'uploading' | 'confirming' | 'uploaded' | 'duplicate' | 'error';
 
 interface SelectedPhoto {
     errorMessage: string;
@@ -15,7 +16,9 @@ interface SelectedPhoto {
     objectKey: string | null;
     originalHash: string;
     photoId: number | null;
+    progress: number;
     status: PhotoStatus;
+    uploadFile: Blob;
     uploadHash: string;
 }
 
@@ -23,7 +26,9 @@ const photoInput = ref<HTMLInputElement | null>(null);
 const selectedPhotos = ref<SelectedPhoto[]>([]);
 let selectionVersion = 0;
 
-const isProcessing = computed(() => selectedPhotos.value.some((photo) => photo.status === 'hashing' || photo.status === 'checking'));
+const isProcessing = computed(() =>
+    selectedPhotos.value.some((photo) => ['hashing', 'checking', 'uploading', 'confirming'].includes(photo.status)),
+);
 
 function choosePhotos(): void {
     photoInput.value?.click();
@@ -41,14 +46,19 @@ async function handlePhotoSelection(event: Event): Promise<void> {
         objectKey: null,
         originalHash: '',
         photoId: null,
+        progress: 0,
         status: 'hashing',
+        uploadFile: file,
         uploadHash: '',
     }));
     input.value = '';
 
     for (const [index, photo] of selectedPhotos.value.entries()) {
         try {
-            const hash = await calculateFileSha256(photo.file);
+            const originalHash = await calculateFileSha256(photo.file);
+            const uploadHash = photo.uploadFile === photo.file
+                ? originalHash
+                : await calculateFileSha256(photo.uploadFile);
 
             if (currentVersion !== selectionVersion) {
                 return;
@@ -56,9 +66,9 @@ async function handlePhotoSelection(event: Event): Promise<void> {
 
             selectedPhotos.value[index] = {
                 ...photo,
-                originalHash: hash,
+                originalHash,
                 status: 'checking',
-                uploadHash: hash,
+                uploadHash,
             };
         } catch {
             if (currentVersion !== selectionVersion) {
@@ -67,7 +77,7 @@ async function handlePhotoSelection(event: Event): Promise<void> {
 
             selectedPhotos.value[index] = {
                 ...photo,
-                errorMessage: '无法读取这张照片，请重新选择后再试。',
+                errorMessage: '照片读取失败，请重新选择。',
                 status: 'error',
             };
         }
@@ -88,9 +98,9 @@ async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
     try {
         const preparation = await preparePhotoUploads(
             candidates.map(({ photo }) => ({
-                file_size: photo.file.size,
+                file_size: photo.uploadFile.size,
                 filename: photo.file.name,
-                mime_type: photo.file.type,
+                mime_type: photo.uploadFile.type,
                 original_file_hash: photo.originalHash,
                 upload_file_hash: photo.uploadHash,
             })),
@@ -129,6 +139,8 @@ async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
                 status: 'ready',
             };
         }
+
+        await uploadReadyPhotos(candidates, preparation.credentials, currentVersion);
     } catch {
         if (currentVersion !== selectionVersion) {
             return;
@@ -143,7 +155,66 @@ async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
 
             selectedPhotos.value[selectedIndex] = {
                 ...photo,
-                errorMessage: '暂时无法检查照片，请稍后重新选择。',
+                errorMessage: '处理失败，请稍后重试。',
+                status: 'error',
+            };
+        }
+    }
+}
+
+async function uploadReadyPhotos(
+    candidates: Array<{ photo: SelectedPhoto; selectedIndex: number }>,
+    credentials: OssTemporaryCredentials,
+    currentVersion: number,
+): Promise<void> {
+    for (const { selectedIndex } of candidates) {
+        if (currentVersion !== selectionVersion) {
+            return;
+        }
+
+        const photo = selectedPhotos.value[selectedIndex];
+
+        if (photo === undefined || photo.status !== 'ready' || photo.objectKey === null || photo.photoId === null) {
+            continue;
+        }
+
+        selectedPhotos.value[selectedIndex] = { ...photo, progress: 0, status: 'uploading' };
+
+        try {
+            await uploadPhotoToOss(photo.uploadFile, photo.objectKey, credentials, (progress) => {
+                const currentPhoto = selectedPhotos.value[selectedIndex];
+
+                if (currentVersion === selectionVersion && currentPhoto?.status === 'uploading') {
+                    selectedPhotos.value[selectedIndex] = { ...currentPhoto, progress };
+                }
+            });
+
+            const uploadedPhoto = selectedPhotos.value[selectedIndex];
+
+            if (currentVersion !== selectionVersion || uploadedPhoto === undefined) {
+                return;
+            }
+
+            selectedPhotos.value[selectedIndex] = { ...uploadedPhoto, status: 'confirming' };
+            await completePhotoUpload(photo.photoId);
+
+            const confirmedPhoto = selectedPhotos.value[selectedIndex];
+
+            if (currentVersion !== selectionVersion || confirmedPhoto === undefined) {
+                return;
+            }
+
+            selectedPhotos.value[selectedIndex] = { ...confirmedPhoto, progress: 100, status: 'uploaded' };
+        } catch {
+            const failedPhoto = selectedPhotos.value[selectedIndex];
+
+            if (currentVersion !== selectionVersion || failedPhoto === undefined) {
+                return;
+            }
+
+            selectedPhotos.value[selectedIndex] = {
+                ...failedPhoto,
+                errorMessage: '上传失败，请稍后重试。',
                 status: 'error',
             };
         }
@@ -158,20 +229,26 @@ function formatFileSize(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function statusLabel(status: PhotoStatus): string {
-    const labels: Record<PhotoStatus, string> = {
-        hashing: '正在计算',
-        checking: '正在查重',
-        ready: '等待上传',
-        duplicate: '已存在 · 已跳过',
-        error: '处理失败',
+function statusLabel(photo: SelectedPhoto): string {
+    const labels: Record<Exclude<PhotoStatus, 'uploading'>, string> = {
+        hashing: '处理中',
+        checking: '处理中',
+        ready: '处理中',
+        confirming: '处理中',
+        uploaded: '上传成功',
+        duplicate: '已跳过',
+        error: '上传失败',
     };
 
-    return labels[status];
+    if (photo.status === 'uploading') {
+        return `上传中 ${photo.progress}%`;
+    }
+
+    return labels[photo.status];
 }
 
 function statusClasses(status: PhotoStatus): string {
-    if (status === 'ready') {
+    if (status === 'ready' || status === 'uploaded') {
         return 'bg-sage-100 text-sage-600';
     }
 
@@ -236,17 +313,14 @@ function statusClasses(status: PhotoStatus): string {
                         role="status"
                         aria-live="polite"
                     >
-                        {{ statusLabel(photo.status) }}
+                        {{ statusLabel(photo) }}
                     </span>
                 </div>
 
-                <p
-                    v-if="photo.originalHash"
-                    class="break-all rounded-control bg-canvas px-3 py-2 font-mono text-[0.68rem] leading-5 text-ink-500"
-                >
-                    原始 SHA-256 · {{ photo.originalHash }}
-                </p>
-                <p v-if="photo.status === 'duplicate'" class="text-xs leading-5 text-gold-500">服务器中已有相同文件，本次上传将自动跳过。</p>
+                <div v-if="photo.status === 'uploading'" class="h-1.5 overflow-hidden rounded-pill bg-rose-100" aria-hidden="true">
+                    <div class="h-full rounded-pill bg-rose-600 transition-[width] duration-200" :style="{ width: `${photo.progress}%` }"></div>
+                </div>
+                <p v-if="photo.status === 'duplicate'" class="text-xs leading-5 text-gold-500">这张照片已经上传过，本次已跳过。</p>
                 <p v-else-if="photo.status === 'error'" class="text-xs leading-5 text-rose-700">{{ photo.errorMessage }}</p>
             </article>
         </section>
