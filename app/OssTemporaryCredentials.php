@@ -10,11 +10,7 @@ final readonly class OssTemporaryCredentials
         public string $securityToken,
         public string $expiration,
         public string $bucket,
-        public string $region,
-        public string $endpoint,
-        public string $bucketUrl,
-        public string $publicUrl,
-        public string $objectKeyPrefix,
+        public string $uploadUrl,
     ) {}
 
     /**
@@ -24,11 +20,7 @@ final readonly class OssTemporaryCredentials
      *     security_token: string,
      *     expiration: string,
      *     bucket: string,
-     *     region: string,
-     *     endpoint: string,
-     *     bucket_url: string,
-     *     public_url: string,
-     *     object_key_prefix: string
+     *     upload_url: string
      * }
      */
     public function toArray(): array
@@ -39,11 +31,7 @@ final readonly class OssTemporaryCredentials
             'security_token' => $this->securityToken,
             'expiration' => $this->expiration,
             'bucket' => $this->bucket,
-            'region' => $this->region,
-            'endpoint' => $this->endpoint,
-            'bucket_url' => $this->bucketUrl,
-            'public_url' => $this->publicUrl,
-            'object_key_prefix' => $this->objectKeyPrefix,
+            'upload_url' => $this->uploadUrl,
         ];
     }
 }

@@ -35,6 +35,7 @@ class CurrentUserPhotoControllerTest extends TestCase
 
     public function test_returns_only_the_current_users_photos_in_latest_first_order(): void
     {
+        $this->travelTo('2026-09-20 08:00:00');
         [$user, $plainTextToken] = $this->authenticatedUser();
         $olderPhoto = Photo::factory()->for($user)->create([
             'original_filename' => 'older.jpg',
@@ -70,6 +71,7 @@ class CurrentUserPhotoControllerTest extends TestCase
                         'file_size' => 2000,
                         'upload_status' => 'uploaded',
                         'review_status' => 'good',
+                        'thumbnail_url' => $this->thumbnailUrl($newerPhoto->object_key),
                         'created_at' => '2026-09-20T08:00:00.000000Z',
                     ],
                     [
@@ -94,5 +96,25 @@ class CurrentUserPhotoControllerTest extends TestCase
         ]);
 
         return [$user, $plainTextToken];
+    }
+
+    private function thumbnailUrl(string $objectKey): string
+    {
+        $process = 'image/resize,m_fill,w_400,h_400/quality,q_85/format,webp';
+        $expires = 1789894800;
+        $bucket = (string) config('oss.bucket');
+        $signature = base64_encode(hash_hmac(
+            'sha1',
+            "GET\n\n\n{$expires}\n/{$bucket}/{$objectKey}?x-oss-process={$process}",
+            (string) config('oss.access_key_secret'),
+            true,
+        ));
+
+        return rtrim((string) config('oss.public_url'), '/').'/'.$objectKey.'?'.http_build_query([
+            'x-oss-process' => $process,
+            'OSSAccessKeyId' => config('oss.access_key_id'),
+            'Expires' => $expires,
+            'Signature' => $signature,
+        ], encoding_type: PHP_QUERY_RFC3986);
     }
 }

@@ -25,7 +25,7 @@ class PreparedPhotoUploadControllerTest extends TestCase
             'endpoint' => 'https://oss-cn-qingdao.aliyuncs.com',
             'internal_endpoint' => 'https://oss-cn-qingdao-internal.aliyuncs.com',
             'bucket_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
-            'public_url' => 'https://cdn.example.com',
+            'public_url' => 'https://ali-cdn.example.test',
             'role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',
             'temporary_credential_ttl_seconds' => 900,
@@ -72,7 +72,10 @@ class PreparedPhotoUploadControllerTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('credentials.access_key_id', 'temporary-access-key-id')
-            ->assertJsonPath('credentials.bucket_url', 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com')
+            ->assertJsonPath('credentials.upload_url', 'https://ali-cdn.example.test')
+            ->assertJsonMissingPath('credentials.bucket_url')
+            ->assertJsonMissingPath('credentials.endpoint')
+            ->assertJsonMissingPath('credentials.public_url')
             ->assertJsonPath('photos.0.index', 0)
             ->assertJsonPath('photos.0.status', 'ready')
             ->assertJsonPath('photos.0.original_file_hash', str_repeat('a', 64))
@@ -112,10 +115,12 @@ class PreparedPhotoUploadControllerTest extends TestCase
             ->postJson('/api/uploads/prepare', [
                 'photos' => [
                     $this->validPhoto([
+                        'original_file_hash' => str_repeat('b', 64),
                         'upload_file_hash' => str_repeat('c', 64),
                     ]),
                     $this->validPhoto([
                         'original_file_hash' => str_repeat('d', 64),
+                        'upload_file_hash' => str_repeat('a', 64),
                     ]),
                 ],
             ]);
@@ -123,9 +128,9 @@ class PreparedPhotoUploadControllerTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('photos.0.status', 'duplicate')
-            ->assertJsonPath('photos.0.duplicate_hashes', [str_repeat('a', 64)])
+            ->assertJsonPath('photos.0.duplicate_hashes', [str_repeat('b', 64)])
             ->assertJsonPath('photos.1.status', 'duplicate')
-            ->assertJsonPath('photos.1.duplicate_hashes', [str_repeat('b', 64)]);
+            ->assertJsonPath('photos.1.duplicate_hashes', [str_repeat('a', 64)]);
 
         $this->assertDatabaseCount('photos', 1);
     }
@@ -143,6 +148,8 @@ class PreparedPhotoUploadControllerTest extends TestCase
                     $this->validPhoto(),
                     $this->validPhoto([
                         'filename' => 'duplicate-copy.jpg',
+                        'original_file_hash' => str_repeat('c', 64),
+                        'upload_file_hash' => str_repeat('a', 64),
                     ]),
                 ],
             ]);
@@ -151,7 +158,7 @@ class PreparedPhotoUploadControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('photos.0.status', 'ready')
             ->assertJsonPath('photos.1.status', 'duplicate')
-            ->assertJsonPath('photos.1.duplicate_hashes', [str_repeat('a', 64), str_repeat('b', 64)]);
+            ->assertJsonPath('photos.1.duplicate_hashes', [str_repeat('a', 64)]);
 
         $this->assertDatabaseCount('photos', 1);
     }

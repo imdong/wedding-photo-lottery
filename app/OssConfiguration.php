@@ -19,6 +19,7 @@ final readonly class OssConfiguration
         public string $stsEndpoint,
         public int $temporaryCredentialTtlSeconds,
         public string $uploadPrefix,
+        public int $imageUrlTtlSeconds = 3600,
     ) {}
 
     public static function fromConfig(): self
@@ -46,6 +47,7 @@ final readonly class OssConfiguration
         }
 
         $temporaryCredentialTtlSeconds = config('oss.temporary_credential_ttl_seconds');
+        $imageUrlTtlSeconds = (int) config('oss.image_url_ttl_seconds', 3600);
 
         if (
             ! is_int($temporaryCredentialTtlSeconds)
@@ -62,6 +64,10 @@ final readonly class OssConfiguration
             ));
         }
 
+        if ($imageUrlTtlSeconds < 60 || $imageUrlTtlSeconds > 32_400) {
+            throw new RuntimeException('OSS 配置缺失或无效：ALIYUN_OSS_IMAGE_URL_TTL_SECONDS。请在 .env 中补充后重试。');
+        }
+
         return new self(
             accessKeyId: trim($values['access_key_id']['value']),
             accessKeySecret: trim($values['access_key_secret']['value']),
@@ -75,6 +81,7 @@ final readonly class OssConfiguration
             stsEndpoint: rtrim(trim($values['sts_endpoint']['value']), '/'),
             temporaryCredentialTtlSeconds: $temporaryCredentialTtlSeconds,
             uploadPrefix: trim($values['upload_prefix']['value'], '/'),
+            imageUrlTtlSeconds: $imageUrlTtlSeconds,
         );
     }
 }

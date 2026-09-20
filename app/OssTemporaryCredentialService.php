@@ -59,11 +59,7 @@ final readonly class OssTemporaryCredentialService
             securityToken: $securityToken,
             expiration: $expiration,
             bucket: $this->configuration->bucket,
-            region: $this->configuration->region,
-            endpoint: $this->configuration->endpoint,
-            bucketUrl: $this->configuration->bucketUrl,
-            publicUrl: $this->configuration->publicUrl,
-            objectKeyPrefix: $objectKeyPrefix,
+            uploadUrl: $this->configuration->publicUrl,
         );
     }
 

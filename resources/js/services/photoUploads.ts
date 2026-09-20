@@ -12,13 +12,9 @@ export interface OssTemporaryCredentials {
     access_key_id: string;
     access_key_secret: string;
     bucket: string;
-    bucket_url: string;
-    endpoint: string;
     expiration: string;
-    object_key_prefix: string;
-    public_url: string;
-    region: string;
     security_token: string;
+    upload_url: string;
 }
 
 interface ReadyPhotoPreparation {
@@ -47,6 +43,21 @@ interface CompletedPhotoUpload {
     upload_status: 'uploaded';
 }
 
+export interface CurrentUserPhoto {
+    created_at: string;
+    file_size: number;
+    id: number;
+    mime_type: string;
+    original_filename: string;
+    review_status: 'pending' | 'normal' | 'good' | 'rejected';
+    thumbnail_url?: string;
+    upload_status: 'preparing' | 'uploaded' | 'failed';
+}
+
+interface CurrentUserPhotoResponse {
+    photos: CurrentUserPhoto[];
+}
+
 export async function preparePhotoUploads(photos: PhotoPreparationInput[]): Promise<PhotoPreparationResponse> {
     const response = await api.post<PhotoPreparationResponse>('/uploads/prepare', { photos }, { timeout: 10_000 });
 
@@ -57,4 +68,10 @@ export async function completePhotoUpload(photoId: number): Promise<CompletedPho
     const response = await api.post<CompletedPhotoUpload>(`/uploads/${photoId}/complete`);
 
     return response.data;
+}
+
+export async function fetchCurrentUserPhotos(): Promise<CurrentUserPhoto[]> {
+    const response = await api.get<CurrentUserPhotoResponse>('/photos/mine');
+
+    return response.data.photos;
 }

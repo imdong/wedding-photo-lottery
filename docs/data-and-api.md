@@ -188,7 +188,8 @@ unique(draw_round_id, position)
 - 在所有用户的照片中全局查重，不限定为当前用户。
 - 原始哈希和实际上传哈希会与已有记录的两个哈希交叉比较，任意命中时返回 `duplicate`，不创建记录。
 - 同一批次中后出现的交叉重复照片同样跳过。
-- 非重复项创建 `preparing` 记录并返回 `ready`、照片 ID 和 Object Key；顶层返回本批共用的 OSS 临时凭证。
+- 非重复项创建 `preparing` 记录并返回 `ready`、照片 ID 和 Object Key；顶层返回 OSS 临时凭证及自定义上传地址，不向客户端返回 OSS Endpoint 或 Bucket 域名。
+- 当前客户端为每张照片独立调用本接口，单张照片校验失败不会阻断其他照片继续检查和上传。
 
 ### `POST /api/uploads/{photo}/complete`
 
@@ -215,13 +216,21 @@ unique(draw_round_id, position)
       "file_size": 12345678,
       "upload_status": "uploaded",
       "review_status": "pending",
+      "thumbnail_url": "https://example.com/wedding/photos/1/photo.jpg?x-oss-process=...",
       "created_at": "2026-09-20T08:00:00.000000Z"
     }
   ]
 }
 ```
 
-不返回文件哈希、OSS Object Key 或其他用户的照片。
+不返回文件哈希、OSS Object Key 或其他用户的照片。只有已经上传完成的照片包含 `thumbnail_url`；私有 Bucket 使用后端生成的一小时限时签名 URL，图片处理参数包含在签名中，链接域名统一使用配置的自定义域名。
+
+图片 URL 预设：
+
+- `thumbnail`：400 × 400 居中裁切，用于缩略图列表。
+- `gallery`：长边不超过 1200 像素，用于移动端预览。
+- `review`：长边不超过 1600 像素，用于审核预览。
+- `draw`：长边不超过 1920 像素，用于抽奖大图。
 
 ## 5. 照片墙与点赞接口
 

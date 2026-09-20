@@ -10,7 +10,7 @@ export async function uploadPhotoToOss(
 ): Promise<void> {
     const date = new Date().toUTCString();
     const authorization = await createOssAuthorization(credentials, objectKey, file.type, date);
-    const objectUrl = `${credentials.bucket_url}/${encodeObjectKey(objectKey)}`;
+    const objectUrl = `${credentials.upload_url}/${encodeObjectKey(objectKey)}`;
 
     await new Promise<void>((resolve, reject) => {
         const request = new XMLHttpRequest();

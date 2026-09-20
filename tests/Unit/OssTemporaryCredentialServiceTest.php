@@ -42,11 +42,7 @@ class OssTemporaryCredentialServiceTest extends TestCase
             'security_token' => 'temporary-security-token',
             'expiration' => '2026-09-20T08:15:00Z',
             'bucket' => 'example-wedding-photos',
-            'region' => 'cn-qingdao',
-            'endpoint' => 'https://oss-cn-qingdao.aliyuncs.com',
-            'bucket_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
-            'public_url' => 'https://cdn.example.com',
-            'object_key_prefix' => 'wedding/photos/42/',
+            'upload_url' => 'https://uploads.example.test',
         ], $credentials->toArray());
 
         Http::assertSent(function (Request $request): bool {
@@ -124,7 +120,7 @@ class OssTemporaryCredentialServiceTest extends TestCase
             endpoint: 'https://oss-cn-qingdao.aliyuncs.com',
             internalEndpoint: 'https://oss-cn-qingdao-internal.aliyuncs.com',
             bucketUrl: 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
-            publicUrl: 'https://cdn.example.com',
+            publicUrl: 'https://uploads.example.test',
             roleArn: 'acs:ram::123456789:role/wedding-photo-upload',
             stsEndpoint: 'https://sts.cn-qingdao.aliyuncs.com',
             temporaryCredentialTtlSeconds: 900,

@@ -74,8 +74,8 @@ https://photo.example.com/api/      Laravel API
   → 浏览器计算 SHA-256
   → POST /api/uploads/prepare
   → 后端检查文件哈希并创建 preparing 记录
-  → 返回 OSS 临时凭证和 objectKey
-  → 浏览器直传 OSS
+  → 返回 OSS 临时凭证、自定义上传域名和 objectKey
+  → 浏览器通过自定义域名直传 OSS
   → 当前照片上传成功后立即 POST /api/uploads/{photo}/complete
   → 后端确认 OSS 对象存在
   → 标记 uploaded + pending
