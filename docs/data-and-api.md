@@ -234,20 +234,24 @@ unique(draw_round_id, position)
 
 ### `GET /api/gallery`
 
-只返回 `normal` 和 `good` 的照片，字段建议包括：
+使用用户 Bearer Token 获取照片墙。只返回上传成功且审核状态为 `normal` 或 `good` 的照片，按上传时间和 ID 倒序排列，每页 20 张，使用 `cursor` 参数继续加载：
 
 ```json
 {
-  "id": 10,
-  "thumbnail_url": "https://...",
-  "preview_url": "https://...",
-  "like_count": 8,
-  "liked_by_me": true,
-  "is_mine": false,
-  "can_like": true,
-  "created_at": "2026-09-19T12:00:00+08:00"
+  "photos": [
+    {
+      "id": 10,
+      "thumbnail_url": "https://...",
+      "preview_url": "https://...",
+      "created_at": "2026-09-19T12:00:00+08:00"
+    }
+  ],
+  "next_cursor": "encoded-cursor-or-null",
+  "has_more": true
 }
 ```
+
+点赞数量、当前用户点赞状态以及是否允许点赞将在点赞功能中扩展。
 
 ### `POST /api/photos/{photo}/like`
 

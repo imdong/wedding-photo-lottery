@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CurrentAdminSessionController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\CurrentUserPhotoController;
 use App\Http\Controllers\Api\CurrentUserPhotoStatsController;
+use App\Http\Controllers\Api\GalleryPhotoController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\NextAdminReviewController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
@@ -45,3 +46,6 @@ Route::post('/uploads/{photo}/complete', CompletedPhotoUploadController::class)
 Route::get('/photos/mine', CurrentUserPhotoController::class)
     ->middleware('user.token')
     ->name('photos.mine');
+Route::get('/gallery', GalleryPhotoController::class)
+    ->middleware('user.token')
+    ->name('gallery.index');
