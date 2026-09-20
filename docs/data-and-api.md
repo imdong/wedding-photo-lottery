@@ -301,7 +301,34 @@ unique(draw_round_id, position)
 
 ### `GET /api/admin/reviews/next`
 
-返回最早的一张待审核照片、审核预览 URL 和剩余待审核数量。
+返回最早的一张已上传、待审核照片，使用 `created_at` 和 `id` 正序排列。`remaining_count` 包含当前返回的照片。
+
+```json
+{
+  "photo": {
+    "id": 12,
+    "original_filename": "IMG_0012.jpg",
+    "mime_type": "image/jpeg",
+    "file_size": 2457600,
+    "width": 4032,
+    "height": 3024,
+    "review_status": "pending",
+    "review_url": "https://ali-cdn.example.com/wedding/photos/12.jpg?...",
+    "uploader_phone_suffix": "8000",
+    "created_at": "2026-09-20T08:00:00.000000Z"
+  },
+  "remaining_count": 3
+}
+```
+
+没有待审核照片时返回：
+
+```json
+{
+  "photo": null,
+  "remaining_count": 0
+}
+```
 
 ### `POST /api/admin/photos/{photo}/review`
 

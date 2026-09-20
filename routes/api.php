@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\CurrentUserPhotoController;
 use App\Http\Controllers\Api\CurrentUserPhotoStatsController;
 use App\Http\Controllers\Api\HealthCheckController;
+use App\Http\Controllers\Api\NextAdminReviewController;
 use App\Http\Controllers\Api\PhoneAuthenticationController;
 use App\Http\Controllers\Api\PreparedPhotoUploadController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
 
     Route::middleware('admin.token')->group(function (): void {
         Route::get('/session', CurrentAdminSessionController::class)->name('session.show');
+        Route::get('/reviews/next', NextAdminReviewController::class)->name('reviews.next');
     });
 });
 Route::post('/auth/phone', PhoneAuthenticationController::class)
