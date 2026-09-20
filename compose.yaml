@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    ports:
-      - "39538:8000"
+    expose:
+      - "8000"
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
@@ -52,8 +52,8 @@ services:
   frontend:
     image: node:24-alpine
     working_dir: /var/www/html
-    ports:
-      - "39539:5173"
+    expose:
+      - "5173"
     environment:
       APP_URL: http://localhost:39538
     volumes:
@@ -72,6 +72,24 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
+
+  proxy:
+    image: nginx:1.29-alpine
+    ports:
+      - "39538:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/up"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   mysql-data:

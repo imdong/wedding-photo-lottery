@@ -22,13 +22,12 @@ export default defineConfig({
         host: '0.0.0.0',
         port: 5173,
         strictPort: true,
-        origin: 'http://localhost:39539',
-        cors: {
-            origin: 'http://localhost:39538',
-        },
+        origin: 'http://localhost:39538',
+        allowedHosts: ['localhost'],
         hmr: {
             host: 'localhost',
-            clientPort: 39539,
+            clientPort: 39538,
+            path: '/vite-hmr',
         },
         watch: {
             ignored: ['**/storage/framework/views/**'],

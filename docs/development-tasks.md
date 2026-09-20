@@ -13,10 +13,11 @@
 
 ## A. 项目基础
 
-- [ ] **A01 创建 Laravel 项目**
+- [x] **A01 创建 Laravel 项目**
   - 初始化 Laravel 和环境变量模板。
   - 增加 `/api/health`。
   - 验收：接口能返回应用和数据库状态。
+  - 实现：Laravel 13 项目已初始化；健康检查成功时返回 200，数据库不可用时返回 503。
 
 - [ ] **A02 创建 Vue 项目**
   - 初始化 Vue 3、Vite、TypeScript、Router、Pinia。
@@ -387,4 +388,3 @@ H01-H08 → I04-I05 → J03
 ```text
 L01-L07
 ```
-
