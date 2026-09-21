@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\CurrentUserPhotoController;
 use App\Http\Controllers\Api\CurrentUserPhotoStatsController;
 use App\Http\Controllers\Api\DrawRoundController;
+use App\Http\Controllers\Api\DrawWinnerController;
 use App\Http\Controllers\Api\GalleryPhotoController;
 use App\Http\Controllers\Api\HealthCheckController;
 use App\Http\Controllers\Api\NextAdminReviewController;
@@ -38,6 +39,8 @@ Route::post('/auth/phone', PhoneAuthenticationController::class)
     ->name('auth.phone');
 Route::post('/draw-rounds/{drawRound}/draw', DrawRoundController::class)
     ->name('draw-rounds.draw');
+Route::get('/draw-winners', DrawWinnerController::class)
+    ->name('draw-winners.index');
 Route::get('/me', CurrentUserController::class)
     ->middleware('user.token')
     ->name('me.show');
