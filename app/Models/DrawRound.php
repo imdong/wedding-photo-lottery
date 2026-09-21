@@ -7,6 +7,7 @@ use Database\Factories\DrawRoundFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'round_number',
@@ -22,6 +23,12 @@ class DrawRound extends Model
     use HasFactory;
 
     public const UPDATED_AT = null;
+
+    /** @return HasMany<DrawWinner, $this> */
+    public function winners(): HasMany
+    {
+        return $this->hasMany(DrawWinner::class);
+    }
 
     /** @var array<string, mixed> */
     protected $attributes = [
