@@ -115,6 +115,30 @@ class AdminDrawRoundControllerTest extends TestCase
         );
     }
 
+    public function test_public_route_reuses_the_current_prepared_round_without_login(): void
+    {
+        config(['lottery.draw_count' => 2]);
+        $firstUser = User::factory()->create();
+        $secondUser = User::factory()->create();
+        Photo::factory()->for($firstUser)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Normal,
+        ]);
+        Photo::factory()->for($secondUser)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Good,
+        ]);
+
+        $firstResponse = $this->postJson('/api/draw-rounds')
+            ->assertCreated()
+            ->assertJsonPath('status', 'prepared');
+        $secondResponse = $this->postJson('/api/draw-rounds')
+            ->assertCreated();
+
+        $this->assertSame($firstResponse->json('id'), $secondResponse->json('id'));
+        $this->assertDatabaseCount('draw_rounds', 1);
+    }
+
     private function adminToken(): string
     {
         return app(AdminTokenService::class)->issue()['token'];

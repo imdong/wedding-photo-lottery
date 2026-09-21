@@ -37,6 +37,8 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
 Route::post('/auth/phone', PhoneAuthenticationController::class)
     ->middleware('throttle:phone-registration')
     ->name('auth.phone');
+Route::post('/draw-rounds', AdminDrawRoundController::class)
+    ->name('draw-rounds.store');
 Route::post('/draw-rounds/{drawRound}/draw', DrawRoundController::class)
     ->name('draw-rounds.draw');
 Route::get('/draw-winners', DrawWinnerController::class)

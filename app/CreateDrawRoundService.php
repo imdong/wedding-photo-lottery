@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Enums\DrawRoundStatus;
 use App\Exceptions\InsufficientDrawCandidatesException;
 use App\Models\DrawRound;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,14 @@ final readonly class CreateDrawRoundService
                 ->latest('round_number')
                 ->lockForUpdate()
                 ->first();
+
+            if (
+                $lastRound?->status === DrawRoundStatus::Prepared
+                && $lastRound->candidate_snapshot !== []
+            ) {
+                return $lastRound;
+            }
+
             $drawRound = DrawRound::query()->create([
                 'round_number' => ($lastRound?->round_number ?? 0) + 1,
                 'draw_count' => $drawCount,

@@ -1,7 +1,40 @@
+import api from './api';
+
 export interface DrawCandidatePhoto {
     draw_url: string;
+    effective_likes: number;
+    like_bonus: number;
+    lottery_status: 'approved' | 'featured';
     photo_id: number;
     thumbnail_url: string;
+    weight: number;
+}
+
+export interface DrawCandidateUser {
+    phone_suffix: string;
+    photos: DrawCandidatePhoto[];
+    user_id: number;
+    weight: number;
+}
+
+export interface DrawCandidateSnapshot {
+    total_weight: number;
+    users: DrawCandidateUser[];
+}
+
+export interface PreparedDrawRound {
+    candidate_snapshot: DrawCandidateSnapshot;
+    completed_at: string | null;
+    created_at: string;
+    draw_count: number;
+    id: number;
+    round_number: number;
+    settings_snapshot: {
+        draw_count: number;
+        exclude_previous_winners: boolean;
+        selection_mode: 'user_then_photo';
+    };
+    status: 'prepared';
 }
 
 export interface DrawImagePreloadProgress {
@@ -18,6 +51,16 @@ export interface DrawImagePreloadResult extends DrawImagePreloadProgress {
 const preloadConcurrency = 4;
 const preloadTimeoutMilliseconds = 15_000;
 const retainedDrawImages = new Map<string, Promise<HTMLImageElement>>();
+
+export async function prepareDrawRound(): Promise<PreparedDrawRound> {
+    const response = await api.post<PreparedDrawRound>('/draw-rounds');
+
+    return response.data;
+}
+
+export function flattenCandidatePhotos(round: PreparedDrawRound): DrawCandidatePhoto[] {
+    return round.candidate_snapshot.users.flatMap((user) => user.photos);
+}
 
 export async function preloadCandidateDrawImages(
     photos: DrawCandidatePhoto[],

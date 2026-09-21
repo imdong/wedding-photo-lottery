@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import { isAxiosError } from 'axios';
 import { computed, ref, watch } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import {
+    flattenCandidatePhotos,
     preloadCandidateDrawImages,
+    prepareDrawRound,
     type DrawCandidatePhoto,
     type DrawImagePreloadProgress,
+    type PreparedDrawRound,
 } from '../services/drawRounds';
+
+interface ApiErrorResponse {
+    message?: string;
+}
+
+type PreparationStatus = 'idle' | 'preparing' | 'prepared' | 'error';
 
 const photoTiles = [
     { frame: 'left-[3%] top-[12%] h-[34%] w-[24%] -rotate-6', tone: 'from-rose-100 via-[#f7d8d5] to-gold-100' },
@@ -19,6 +29,9 @@ const photoTiles = [
 ];
 
 const candidatePhotos = ref<DrawCandidatePhoto[]>([]);
+const preparedRound = ref<PreparedDrawRound | null>(null);
+const preparationStatus = ref<PreparationStatus>('idle');
+const preparationError = ref('');
 const failedThumbnailIds = ref(new Set<number>());
 const failedDrawImageIds = ref(new Set<number>());
 const preloadProgress = ref<DrawImagePreloadProgress>({
@@ -46,6 +59,23 @@ const preloadStatus = computed(() => {
 
     return `${preloadProgress.value.loaded} 张大图已就绪`;
 });
+const stageStatus = computed(() => {
+    if (preparationStatus.value === 'preparing') {
+        return '正在准备';
+    }
+
+    if (preparationStatus.value === 'prepared') {
+        return preloadProgress.value.completed < preloadProgress.value.total
+            ? '正在加载照片'
+            : '本轮已准备';
+    }
+
+    if (preparationStatus.value === 'error') {
+        return '准备失败';
+    }
+
+    return '等待准备';
+});
 
 watch(candidatePhotos, async (photos) => {
     failedThumbnailIds.value = new Set();
@@ -60,6 +90,28 @@ watch(candidatePhotos, async (photos) => {
 
 function markThumbnailAsFailed(photoId: number): void {
     failedThumbnailIds.value.add(photoId);
+}
+
+async function prepareRound(): Promise<void> {
+    if (preparationStatus.value === 'preparing' || preparedRound.value !== null) {
+        return;
+    }
+
+    preparationStatus.value = 'preparing';
+    preparationError.value = '';
+
+    try {
+        const round = await prepareDrawRound();
+
+        preparedRound.value = round;
+        candidatePhotos.value = flattenCandidatePhotos(round);
+        preparationStatus.value = 'prepared';
+    } catch (error: unknown) {
+        preparationError.value = isAxiosError<ApiErrorResponse>(error)
+            ? error.response?.data.message ?? '准备失败，请稍后重试。'
+            : '准备失败，请稍后重试。';
+        preparationStatus.value = 'error';
+    }
 }
 </script>
 
@@ -80,7 +132,7 @@ function markThumbnailAsFailed(photoId: number): void {
 
                 <div class="flex items-center gap-3 rounded-pill border border-white/10 bg-white/6 px-4 py-2 text-sm text-white/65 backdrop-blur-xl">
                     <span class="size-2 rounded-full bg-gold-300 shadow-[0_0_0_5px_rgb(223_194_143_/_0.12)]"></span>
-                    等待准备
+                    {{ stageStatus }}
                 </div>
             </header>
 
@@ -102,7 +154,7 @@ function markThumbnailAsFailed(photoId: number): void {
                             </div>
                             <div class="h-11 w-px bg-white/10"></div>
                             <div>
-                                <p class="text-2xl font-semibold text-white">—</p>
+                                <p class="text-2xl font-semibold text-white">{{ preparedRound?.draw_count ?? '—' }}</p>
                                 <p class="mt-1 text-xs tracking-wider text-white/40">本轮名额</p>
                             </div>
                         </div>
@@ -157,9 +209,17 @@ function markThumbnailAsFailed(photoId: number): void {
                             <span class="grid size-8 place-items-center rounded-full border border-white/10 bg-white/5 text-gold-300">✦</span>
                             <span>{{ preloadStatus }}</span>
                             <span v-if="failedDrawImageIds.size > 0" class="text-rose-300">失败照片将使用占位图</span>
+                            <span v-if="preparationError !== ''" class="text-rose-300">{{ preparationError }}</span>
                         </div>
                         <div class="flex shrink-0 items-center gap-3">
-                            <BaseButton class="min-w-36 2xl:min-w-40" variant="secondary" disabled>准备抽奖</BaseButton>
+                            <BaseButton
+                                class="min-w-36 2xl:min-w-40"
+                                variant="secondary"
+                                :disabled="preparationStatus === 'preparing' || preparedRound !== null"
+                                @click="prepareRound"
+                            >
+                                {{ preparationStatus === 'preparing' ? '准备中…' : preparedRound === null ? '准备抽奖' : `第 ${preparedRound.round_number} 轮已准备` }}
+                            </BaseButton>
                             <BaseButton class="min-w-40 2xl:min-w-48" disabled>开始抽奖</BaseButton>
                         </div>
                     </div>
