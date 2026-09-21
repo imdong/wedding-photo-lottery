@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import LoadingState from '../components/LoadingState.vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -14,13 +14,17 @@ const photos = ref<GalleryPhoto[]>([]);
 const galleryStatus = ref<GalleryStatus>('idle');
 const nextCursor = ref<string | null>(null);
 const hasMore = ref(false);
+const totalCount = ref(0);
 const isLoadingMore = ref(false);
 const loadMoreError = ref('');
+const loadMoreSentinel = ref<HTMLElement | null>(null);
+const loadedThumbnailIds = ref<Set<number>>(new Set());
 const failedThumbnailIds = ref<Set<number>>(new Set());
 const selectedPhoto = ref<GalleryPhoto | null>(null);
 const hasPreviewError = ref(false);
 const pendingLikePhotoIds = ref<Set<number>>(new Set());
 const likeError = ref('');
+let loadMoreObserver: IntersectionObserver | null = null;
 
 watch(
     () => userIdentity.isAuthenticated,
@@ -36,12 +40,26 @@ watch(
     { immediate: true },
 );
 
+watch(loadMoreSentinel, () => {
+    observeLoadMoreSentinel();
+});
+
 onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
+    loadMoreObserver = new IntersectionObserver(
+        (entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+                void loadMorePhotos();
+            }
+        },
+        { rootMargin: '320px 0px' },
+    );
+    observeLoadMoreSentinel();
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('keydown', handleKeydown);
+    loadMoreObserver?.disconnect();
 });
 
 async function loadGallery(): Promise<void> {
@@ -54,6 +72,8 @@ async function loadGallery(): Promise<void> {
         photos.value = page.photos;
         nextCursor.value = page.next_cursor;
         hasMore.value = page.has_more;
+        totalCount.value = page.total_count;
+        loadedThumbnailIds.value = new Set();
         failedThumbnailIds.value = new Set();
         galleryStatus.value = 'ready';
     } catch {
@@ -68,6 +88,7 @@ async function loadMorePhotos(): Promise<void> {
 
     isLoadingMore.value = true;
     loadMoreError.value = '';
+    loadMoreObserver?.disconnect();
 
     try {
         const page = await fetchGalleryPhotos(nextCursor.value);
@@ -75,19 +96,44 @@ async function loadMorePhotos(): Promise<void> {
         photos.value = [...photos.value, ...page.photos];
         nextCursor.value = page.next_cursor;
         hasMore.value = page.has_more;
+        totalCount.value = page.total_count;
     } catch {
         loadMoreError.value = '更多照片加载失败，请重试。';
     } finally {
         isLoadingMore.value = false;
+        await nextTick();
+
+        if (loadMoreError.value === '') {
+            observeLoadMoreSentinel();
+        }
     }
+}
+
+function observeLoadMoreSentinel(): void {
+    loadMoreObserver?.disconnect();
+
+    if (
+        loadMoreObserver === null
+        || loadMoreSentinel.value === null
+        || !hasMore.value
+        || isLoadingMore.value
+        || loadMoreError.value !== ''
+    ) {
+        return;
+    }
+
+    loadMoreObserver.observe(loadMoreSentinel.value);
 }
 
 function resetGallery(): void {
     photos.value = [];
     nextCursor.value = null;
     hasMore.value = false;
+    totalCount.value = 0;
     galleryStatus.value = 'idle';
     loadMoreError.value = '';
+    loadedThumbnailIds.value = new Set();
+    failedThumbnailIds.value = new Set();
     selectedPhoto.value = null;
     pendingLikePhotoIds.value = new Set();
     likeError.value = '';
@@ -105,6 +151,10 @@ function closePreview(): void {
 
 function markThumbnailFailed(photoId: number): void {
     failedThumbnailIds.value = new Set([...failedThumbnailIds.value, photoId]);
+}
+
+function markThumbnailLoaded(photoId: number): void {
+    loadedThumbnailIds.value = new Set([...loadedThumbnailIds.value, photoId]);
 }
 
 async function togglePhotoLike(photo: GalleryPhoto): Promise<void> {
@@ -160,12 +210,12 @@ function handleKeydown(event: KeyboardEvent): void {
 
         <section class="rounded-card border border-white/80 bg-white/72 p-5 shadow-card backdrop-blur-sm">
             <div class="flex items-center justify-between gap-4">
-                <div>
-                    <p class="text-sm font-semibold text-ink-950">照片正在汇集</p>
-                    <p class="mt-1 text-xs text-ink-500">点击照片可以查看清晰大图</p>
+                <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <p class="whitespace-nowrap text-sm font-semibold text-ink-950">照片正在汇集</p>
+                    <p class="whitespace-nowrap text-xs text-ink-500">点击照片可以查看清晰大图</p>
                 </div>
-                <span v-if="galleryStatus === 'ready'" class="rounded-pill bg-gold-100 px-3 py-1.5 text-xs font-semibold text-gold-500">
-                    已加载 {{ photos.length }} 张
+                <span v-if="galleryStatus === 'ready'" class="shrink-0 whitespace-nowrap rounded-pill bg-gold-100 px-3 py-1.5 text-xs font-semibold text-gold-500">
+                    已有 {{ totalCount }} 张
                 </span>
             </div>
         </section>
@@ -207,20 +257,33 @@ function handleKeydown(event: KeyboardEvent): void {
                 >
                     <button
                         type="button"
-                        class="group block size-full text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-500"
+                        class="group relative block size-full text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-500"
                         aria-label="查看婚礼照片大图"
                         @click="openPreview(photo)"
                     >
-                        <img
-                            v-if="!failedThumbnailIds.has(photo.id)"
-                            :src="photo.thumbnail_url"
-                            alt="婚礼现场照片"
-                            class="size-full object-cover transition duration-300 group-active:scale-[1.02]"
-                            loading="lazy"
-                            decoding="async"
-                            @error="markThumbnailFailed(photo.id)"
-                        />
-                        <span v-else class="grid size-full place-items-center px-3 text-center text-xs text-ink-500">照片加载失败</span>
+                        <span v-if="failedThumbnailIds.has(photo.id)" class="grid size-full place-items-center px-3 text-center text-xs text-ink-500">照片加载失败</span>
+                        <template v-else>
+                            <span
+                                v-if="!loadedThumbnailIds.has(photo.id)"
+                                class="absolute inset-0 flex items-center justify-center gap-2 bg-linear-to-br from-rose-50 via-paper to-gold-100/80 text-xs font-medium text-ink-500"
+                                aria-hidden="true"
+                            >
+                                <span class="size-3.5 animate-spin rounded-full border-2 border-rose-100 border-t-rose-600"></span>
+                                <span>加载中</span>
+                            </span>
+                            <img
+                                :src="photo.thumbnail_url"
+                                alt="婚礼现场照片"
+                                :class="[
+                                    'size-full object-cover transition duration-300 group-active:scale-[1.02]',
+                                    loadedThumbnailIds.has(photo.id) ? 'opacity-100' : 'opacity-0',
+                                ]"
+                                loading="lazy"
+                                decoding="async"
+                                @load="markThumbnailLoaded(photo.id)"
+                                @error="markThumbnailFailed(photo.id)"
+                            />
+                        </template>
                     </button>
                     <span class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/25" aria-hidden="true"></span>
 
@@ -248,14 +311,14 @@ function handleKeydown(event: KeyboardEvent): void {
                 </article>
             </section>
 
-            <section class="flex flex-col items-center gap-3 text-center">
-                <BaseButton v-if="hasMore" variant="secondary" :disabled="isLoadingMore" @click="loadMorePhotos">
-                    <LoadingState v-if="isLoadingMore" label="正在加载" />
-                    <span v-else>继续加载</span>
-                </BaseButton>
-                <p v-if="loadMoreError" class="text-sm text-rose-700" role="alert">{{ loadMoreError }}</p>
-                <p v-if="likeError" class="text-sm text-rose-700" role="alert">{{ likeError }}</p>
+            <section ref="loadMoreSentinel" class="flex min-h-10 flex-col items-center gap-3 text-center">
+                <LoadingState v-if="isLoadingMore" label="正在加载更多照片" />
+                <template v-else-if="loadMoreError">
+                    <p class="text-sm text-rose-700" role="alert">{{ loadMoreError }}</p>
+                    <BaseButton variant="secondary" @click="loadMorePhotos">重新加载</BaseButton>
+                </template>
                 <p v-else-if="!hasMore" class="text-xs text-ink-500">已经看完全部照片啦</p>
+                <p v-if="likeError" class="text-sm text-rose-700" role="alert">{{ likeError }}</p>
             </section>
         </template>
 

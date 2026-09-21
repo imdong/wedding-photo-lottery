@@ -33,10 +33,12 @@ const loginError = ref('');
 const actionError = ref('');
 const actionMessage = ref('');
 const currentPhoto = ref<AdminReviewPhoto | null>(null);
+const prefetchedNextPhoto = ref<AdminReviewPhoto | null>(null);
 const remainingCount = ref(0);
 const isLoggingIn = ref(false);
 const isSubmittingReview = ref(false);
 const hasImageError = ref(false);
+let latestReviewLoadSequence = 0;
 
 onMounted(() => {
     window.addEventListener('keydown', handleReviewShortcut);
@@ -94,20 +96,40 @@ async function submitLogin(): Promise<void> {
     }
 }
 
-async function loadNextReview(): Promise<void> {
+async function loadNextReview(options?: { preloadImage?: boolean; preserveCurrentPhoto?: boolean }): Promise<void> {
     if (adminToken.value === '') {
         return;
     }
 
-    reviewQueueStatus.value = 'loading';
-    currentPhoto.value = null;
+    const loadSequence = ++latestReviewLoadSequence;
+    const shouldPreserveCurrentPhoto = options?.preserveCurrentPhoto === true;
+
+    if (!shouldPreserveCurrentPhoto) {
+        reviewQueueStatus.value = 'loading';
+        currentPhoto.value = null;
+        prefetchedNextPhoto.value = null;
+    }
+
     actionError.value = '';
     hasImageError.value = false;
 
     try {
         const queue = await fetchNextAdminReview(adminToken.value);
 
+        if (loadSequence !== latestReviewLoadSequence) {
+            return;
+        }
+
+        if (options?.preloadImage !== false) {
+            await preloadReviewImages(queue.photo, queue.next_photo);
+
+            if (loadSequence !== latestReviewLoadSequence) {
+                return;
+            }
+        }
+
         currentPhoto.value = queue.photo;
+        prefetchedNextPhoto.value = queue.next_photo;
         remainingCount.value = queue.remaining_count;
         reviewQueueStatus.value = queue.photo === null ? 'empty' : 'ready';
     } catch (error: unknown) {
@@ -133,7 +155,22 @@ async function submitReview(reviewStatus: AdminPhotoReviewStatus): Promise<void>
 
     try {
         await reviewAdminPhoto(adminToken.value, currentPhoto.value.id, reviewStatus);
-        await loadNextReview();
+
+        const immediateNextPhoto = prefetchedNextPhoto.value;
+
+        if (immediateNextPhoto !== null) {
+            currentPhoto.value = immediateNextPhoto;
+            prefetchedNextPhoto.value = null;
+            remainingCount.value = Math.max(remainingCount.value - 1, 0);
+            hasImageError.value = false;
+            reviewQueueStatus.value = 'ready';
+
+            await loadNextReview({ preserveCurrentPhoto: true });
+
+            return;
+        }
+
+        await loadNextReview({ preloadImage: true, preserveCurrentPhoto: true });
     } catch (error: unknown) {
         if (isUnauthorized(error)) {
             expireAdminSession();
@@ -143,7 +180,7 @@ async function submitReview(reviewStatus: AdminPhotoReviewStatus): Promise<void>
 
         if (isAxiosError<ApiErrorResponse>(error) && error.response?.status === 409) {
             actionMessage.value = '照片状态已更新，已为你刷新队列。';
-            await loadNextReview();
+            await loadNextReview({ preloadImage: true, preserveCurrentPhoto: true });
 
             return;
         }
@@ -166,7 +203,7 @@ async function undoLatestReview(): Promise<void> {
     try {
         await undoLatestAdminReview(adminToken.value);
         actionMessage.value = '已撤销最近一次审核。';
-        await loadNextReview();
+        await loadNextReview({ preloadImage: true, preserveCurrentPhoto: true });
     } catch (error: unknown) {
         if (isUnauthorized(error)) {
             expireAdminSession();
@@ -178,6 +215,36 @@ async function undoLatestReview(): Promise<void> {
     } finally {
         isSubmittingReview.value = false;
     }
+}
+
+function preloadReviewImage(url: string): Promise<void> {
+    return new Promise((resolve) => {
+        const image = new Image();
+
+        image.onload = () => {
+            resolve();
+        };
+
+        image.onerror = () => {
+            resolve();
+        };
+
+        image.src = url;
+    });
+}
+
+function preloadReviewImages(
+    currentPhotoToLoad: AdminReviewPhoto | null,
+    nextPhotoToLoad: AdminReviewPhoto | null,
+): Promise<void> {
+    const reviewUrls = [currentPhotoToLoad?.review_url, nextPhotoToLoad?.review_url]
+        .filter((url): url is string => typeof url === 'string' && url !== '');
+
+    if (reviewUrls.length === 0) {
+        return Promise.resolve();
+    }
+
+    return Promise.all(reviewUrls.map((url) => preloadReviewImage(url))).then(() => undefined);
 }
 
 function handleReviewShortcut(event: KeyboardEvent): void {
@@ -232,6 +299,7 @@ function clearAdminSession(): void {
     localStorage.removeItem(adminTokenStorageKey);
     adminToken.value = '';
     currentPhoto.value = null;
+    prefetchedNextPhoto.value = null;
     remainingCount.value = 0;
     authenticationStatus.value = 'guest';
     reviewQueueStatus.value = 'idle';
@@ -291,8 +359,8 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
             </form>
         </section>
 
-        <section v-else class="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.55fr)]">
-            <div class="relative grid min-h-[32rem] overflow-hidden rounded-card border border-white/85 bg-white/68 shadow-card backdrop-blur-sm lg:min-h-[42rem]">
+        <section v-else class="grid gap-3 lg:gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.55fr)]">
+            <div class="relative grid min-h-[20rem] overflow-hidden rounded-card border border-white/85 bg-white/68 shadow-card backdrop-blur-sm sm:min-h-[26rem] lg:min-h-[42rem]">
                 <div v-if="reviewQueueStatus === 'loading'" class="grid place-items-center p-8">
                     <LoadingState label="正在加载下一张照片" />
                 </div>
@@ -332,7 +400,7 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                         </div>
                     </div>
 
-                    <div class="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-linear-to-t from-ink-950/80 via-ink-950/45 to-transparent px-6 pt-20 pb-5 text-white">
+                    <div class="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-linear-to-t from-ink-950/80 via-ink-950/45 to-transparent px-4 pt-16 pb-4 text-white sm:px-6 sm:pt-20 sm:pb-5">
                         <div class="min-w-0">
                             <p class="truncate text-sm font-semibold">{{ currentPhoto.original_filename }}</p>
                             <p class="mt-1 text-xs text-white/75">上传者手机尾号 {{ currentPhoto.uploader_phone_suffix }}</p>
@@ -344,13 +412,13 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                 </template>
             </div>
 
-            <aside class="flex flex-col gap-5 rounded-card border border-white/85 bg-paper/85 p-6 shadow-card backdrop-blur-sm">
-                <div class="flex items-center justify-between gap-4 border-b border-rose-100 pb-5">
-                    <div class="flex flex-col gap-1">
-                        <p class="text-xs font-semibold tracking-[0.2em] text-rose-600 uppercase">待处理</p>
-                        <p class="font-display text-4xl font-semibold text-ink-950">{{ remainingCount }}</p>
+            <aside class="flex flex-col gap-3 rounded-card border border-white/85 bg-paper/85 p-4 shadow-card backdrop-blur-sm sm:p-5 lg:gap-5 lg:p-6">
+                <div class="flex items-center justify-between gap-2 border-b border-rose-100 pb-3 lg:gap-4 lg:pb-5">
+                    <div class="flex items-baseline gap-2">
+                        <p class="text-[11px] font-semibold tracking-[0.14em] text-rose-600 uppercase lg:text-xs lg:tracking-[0.2em]">待处理</p>
+                        <p class="font-display text-2xl leading-none font-semibold text-ink-950 lg:text-4xl">{{ remainingCount }}</p>
                     </div>
-                    <span :class="['rounded-pill px-3 py-1.5 text-xs font-semibold', remainingCount === 0 ? 'bg-sage-100 text-sage-600' : 'bg-gold-100 text-gold-500']">
+                    <span :class="['rounded-pill px-2.5 py-1 text-[11px] font-semibold lg:px-3 lg:py-1.5 lg:text-xs', remainingCount === 0 ? 'bg-sage-100 text-sage-600' : 'bg-gold-100 text-gold-500']">
                         {{ remainingCount === 0 ? '队列已清空' : '张照片' }}
                     </span>
                 </div>
@@ -396,7 +464,7 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-3 border-t border-rose-100 pt-5">
+                <div class="flex flex-col gap-3 border-t border-rose-100 pt-3 lg:pt-5">
                     <BaseButton
                         full-width
                         variant="secondary"

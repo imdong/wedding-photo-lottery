@@ -18,7 +18,7 @@ import {
 } from '../services/photoUploads';
 import { useUserIdentityStore } from '../stores/userIdentity';
 
-type PhotoStatus = 'hashing' | 'checking' | 'ready' | 'uploading' | 'confirming' | 'uploaded' | 'duplicate' | 'error';
+type PhotoStatus = 'queued' | 'hashing' | 'checking' | 'ready' | 'uploading' | 'confirming' | 'uploaded' | 'duplicate' | 'error';
 
 interface SelectedPhoto {
     credentials: OssTemporaryCredentials | null;
@@ -51,7 +51,7 @@ const isPhotoStatsVisible = false;
 let selectionVersion = 0;
 
 const isProcessing = computed(() =>
-    selectedPhotos.value.some((photo) => ['hashing', 'checking', 'uploading', 'confirming'].includes(photo.status)),
+    selectedPhotos.value.some((photo) => ['queued', 'hashing', 'checking', 'ready', 'uploading', 'confirming'].includes(photo.status)),
 );
 
 watch(
@@ -82,13 +82,15 @@ async function handlePhotoSelection(event: Event): Promise<void> {
         originalHash: '',
         photoId: null,
         progress: 0,
-        status: 'hashing',
+        status: 'queued',
         uploadFile: file,
         uploadHash: '',
     }));
     input.value = '';
 
     for (const [index, photo] of selectedPhotos.value.entries()) {
+        selectedPhotos.value[index] = { ...photo, status: 'hashing' };
+
         try {
             const originalHash = await calculateFileSha256(photo.file);
             const uploadHash = photo.uploadFile === photo.file
@@ -312,9 +314,10 @@ function formatFileSize(bytes: number): string {
 
 function statusLabel(photo: SelectedPhoto): string {
     const labels: Record<Exclude<PhotoStatus, 'uploading'>, string> = {
+        queued: '等待上传',
         hashing: '处理中',
-        checking: '处理中',
-        ready: '处理中',
+        checking: '等待上传',
+        ready: '等待上传',
         confirming: '处理中',
         uploaded: '上传成功',
         duplicate: '已存在，无需上传',
@@ -329,7 +332,7 @@ function statusLabel(photo: SelectedPhoto): string {
 }
 
 function statusClasses(status: PhotoStatus): string {
-    if (status === 'ready' || status === 'uploaded') {
+    if (status === 'uploaded') {
         return 'bg-sage-100 text-sage-600';
     }
 

@@ -58,6 +58,7 @@ class NextAdminReviewControllerTest extends TestCase
             ->assertOk()
             ->assertExactJson([
                 'photo' => null,
+                'next_photo' => null,
                 'remaining_count' => 0,
             ]);
     }
@@ -77,7 +78,13 @@ class NextAdminReviewControllerTest extends TestCase
             'review_status' => PhotoReviewStatus::Pending,
             'created_at' => '2026-09-20 07:00:00',
         ]);
-        Photo::factory()->for($user)->create([
+        $secondPhoto = Photo::factory()->for($user)->create([
+            'object_key' => 'wedding/photos/1/second.jpg',
+            'original_filename' => 'second.jpg',
+            'mime_type' => 'image/webp',
+            'file_size' => 1_024_000,
+            'width' => 2160,
+            'height' => 1620,
             'upload_status' => PhotoUploadStatus::Uploaded,
             'review_status' => PhotoReviewStatus::Pending,
             'created_at' => '2026-09-20 07:00:00',
@@ -116,6 +123,18 @@ class NextAdminReviewControllerTest extends TestCase
                     'height' => 3024,
                     'review_status' => 'pending',
                     'review_url' => $this->reviewUrl($oldestPhoto->object_key),
+                    'uploader_phone_suffix' => '5678',
+                    'created_at' => '2026-09-20T07:00:00.000000Z',
+                ],
+                'next_photo' => [
+                    'id' => $secondPhoto->id,
+                    'original_filename' => 'second.jpg',
+                    'mime_type' => 'image/webp',
+                    'file_size' => 1_024_000,
+                    'width' => 2160,
+                    'height' => 1620,
+                    'review_status' => 'pending',
+                    'review_url' => $this->reviewUrl($secondPhoto->object_key),
                     'uploader_phone_suffix' => '5678',
                     'created_at' => '2026-09-20T07:00:00.000000Z',
                 ],

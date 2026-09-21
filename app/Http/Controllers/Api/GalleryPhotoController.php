@@ -22,7 +22,15 @@ class GalleryPhotoController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $photos = Photo::query()
+        $approvedPhotosQuery = Photo::query()
+            ->where('upload_status', PhotoUploadStatus::Uploaded)
+            ->whereIn('review_status', [
+                PhotoReviewStatus::Normal->value,
+                PhotoReviewStatus::Good->value,
+            ]);
+        $totalCount = (clone $approvedPhotosQuery)->count();
+
+        $photos = $approvedPhotosQuery
             ->withCount([
                 'likes as like_count' => fn (Builder $query): Builder => $query
                     ->whereColumn('photo_likes.user_id', '!=', 'photos.user_id'),
@@ -30,11 +38,6 @@ class GalleryPhotoController extends Controller
             ->withExists([
                 'likes as liked_by_me' => fn (Builder $query): Builder => $query
                     ->where('user_id', $user->id),
-            ])
-            ->where('upload_status', PhotoUploadStatus::Uploaded)
-            ->whereIn('review_status', [
-                PhotoReviewStatus::Normal->value,
-                PhotoReviewStatus::Good->value,
             ])
             ->latest()
             ->orderByDesc('id')
@@ -46,6 +49,7 @@ class GalleryPhotoController extends Controller
                 ->all(),
             'next_cursor' => $photos->nextCursor()?->encode(),
             'has_more' => $photos->hasMorePages(),
+            'total_count' => $totalCount,
         ]);
     }
 }

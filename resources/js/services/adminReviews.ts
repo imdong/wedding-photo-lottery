@@ -28,6 +28,7 @@ interface AdminSessionResponse {
 
 interface NextAdminReviewResponse {
     photo: AdminReviewPhoto | null;
+    next_photo: AdminReviewPhoto | null;
     remaining_count: number;
 }
 

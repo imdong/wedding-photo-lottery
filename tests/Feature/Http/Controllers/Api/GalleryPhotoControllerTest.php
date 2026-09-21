@@ -94,6 +94,7 @@ class GalleryPhotoControllerTest extends TestCase
                 ],
                 'next_cursor' => null,
                 'has_more' => false,
+                'total_count' => 2,
             ]);
     }
 
@@ -112,7 +113,8 @@ class GalleryPhotoControllerTest extends TestCase
             ->assertOk()
             ->assertJsonCount(20, 'photos')
             ->assertJsonPath('photos.0.id', $photos->last()->id)
-            ->assertJsonPath('has_more', true);
+            ->assertJsonPath('has_more', true)
+            ->assertJsonPath('total_count', 21);
         $nextCursor = $firstPage->json('next_cursor');
 
         $this->assertIsString($nextCursor);
@@ -124,7 +126,8 @@ class GalleryPhotoControllerTest extends TestCase
             ->assertJsonCount(1, 'photos')
             ->assertJsonPath('photos.0.id', $photos->first()->id)
             ->assertJsonPath('next_cursor', null)
-            ->assertJsonPath('has_more', false);
+            ->assertJsonPath('has_more', false)
+            ->assertJsonPath('total_count', 21);
     }
 
     public function test_returns_only_valid_likes_and_current_users_like_state(): void

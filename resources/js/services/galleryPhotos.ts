@@ -15,6 +15,7 @@ export interface GalleryPhotoPage {
     has_more: boolean;
     next_cursor: string | null;
     photos: GalleryPhoto[];
+    total_count: number;
 }
 
 export async function fetchGalleryPhotos(cursor: string | null = null): Promise<GalleryPhotoPage> {

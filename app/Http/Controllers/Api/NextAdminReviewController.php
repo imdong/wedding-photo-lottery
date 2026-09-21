@@ -24,18 +24,28 @@ class NextAdminReviewController extends Controller
         if ($remainingCount === 0) {
             return response()->json([
                 'photo' => null,
+                'next_photo' => null,
                 'remaining_count' => 0,
             ]);
         }
 
-        $photo = $pendingReviews
+        $photos = $pendingReviews
             ->with('user:id,phone')
             ->oldest()
             ->orderBy('id')
-            ->firstOrFail();
+            ->limit(2)
+            ->get();
+
+        $photo = $photos->get(0);
+        $nextPhoto = $photos->get(1);
 
         return response()->json([
-            'photo' => (new AdminReviewPhotoResource($photo, $imageUrlGenerator))->resolve($request),
+            'photo' => $photo === null
+                ? null
+                : (new AdminReviewPhotoResource($photo, $imageUrlGenerator))->resolve($request),
+            'next_photo' => $nextPhoto === null
+                ? null
+                : (new AdminReviewPhotoResource($nextPhoto, $imageUrlGenerator))->resolve($request),
             'remaining_count' => $remainingCount,
         ]);
     }
