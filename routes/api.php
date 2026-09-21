@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminAuthenticationController;
+use App\Http\Controllers\Api\AdminDrawRoundController;
 use App\Http\Controllers\Api\AdminPhotoReviewController;
 use App\Http\Controllers\Api\CompletedPhotoUploadController;
 use App\Http\Controllers\Api\CurrentAdminSessionController;
@@ -28,6 +29,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::get('/reviews/next', NextAdminReviewController::class)->name('reviews.next');
         Route::post('/reviews/undo', UndoAdminReviewController::class)->name('reviews.undo');
         Route::post('/photos/{photo}/review', AdminPhotoReviewController::class)->name('photos.review');
+        Route::post('/draw-rounds', AdminDrawRoundController::class)->name('draw-rounds.store');
     });
 });
 Route::post('/auth/phone', PhoneAuthenticationController::class)
