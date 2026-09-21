@@ -16,7 +16,7 @@ final readonly class CreateDrawRoundService
 
     public function create(): DrawRound
     {
-        $drawCount = (int) config('lottery.draw_count', 3);
+        $drawCount = (int) config('lottery.draw_count', 1);
 
         if ($drawCount < 1) {
             throw new LogicException('抽奖人数配置必须至少为 1。');

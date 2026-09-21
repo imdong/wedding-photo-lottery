@@ -1,5 +1,11 @@
 import api from './api';
 
+export interface DrawDisplayPhoto {
+    draw_url: string;
+    photo_id: number;
+    thumbnail_url: string;
+}
+
 export interface DrawCandidatePhoto {
     draw_url: string;
     effective_likes: number;
@@ -71,6 +77,12 @@ const preloadConcurrency = 4;
 const preloadTimeoutMilliseconds = 15_000;
 const retainedDrawImages = new Map<string, Promise<HTMLImageElement>>();
 
+export async function fetchDrawPhotos(): Promise<DrawDisplayPhoto[]> {
+    const response = await api.get<{ photos: DrawDisplayPhoto[] }>('/draw-photos');
+
+    return response.data.photos;
+}
+
 export async function prepareDrawRound(): Promise<PreparedDrawRound> {
     const response = await api.post<PreparedDrawRound>('/draw-rounds');
 
@@ -134,7 +146,7 @@ export async function preloadCandidateDrawImages(
     };
 }
 
-function preloadDrawImage(url: string): Promise<HTMLImageElement> {
+export function preloadDrawImage(url: string): Promise<HTMLImageElement> {
     const retainedImage = retainedDrawImages.get(url);
 
     if (retainedImage !== undefined) {

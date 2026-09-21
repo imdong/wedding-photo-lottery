@@ -11,6 +11,11 @@ final readonly class OssImageUrlGenerator
         return $this->generate($objectKey, 'image/resize,m_fill,w_400,h_400/quality,q_85/format,webp');
     }
 
+    public function cloud(string $objectKey): string
+    {
+        return $this->generate($objectKey, 'image/resize,m_fill,w_64,h_64/quality,q_70/format,webp');
+    }
+
     public function gallery(string $objectKey): string
     {
         return $this->generate($objectKey, 'image/resize,l_1200/quality,q_90/format,webp');

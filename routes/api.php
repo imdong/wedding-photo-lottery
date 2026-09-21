@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CurrentAdminSessionController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\CurrentUserPhotoController;
 use App\Http\Controllers\Api\CurrentUserPhotoStatsController;
+use App\Http\Controllers\Api\DrawPhotoController;
 use App\Http\Controllers\Api\DrawRoundController;
 use App\Http\Controllers\Api\DrawWinnerController;
 use App\Http\Controllers\Api\GalleryPhotoController;
@@ -41,6 +42,8 @@ Route::post('/draw-rounds', AdminDrawRoundController::class)
     ->name('draw-rounds.store');
 Route::post('/draw-rounds/{drawRound}/draw', DrawRoundController::class)
     ->name('draw-rounds.draw');
+Route::get('/draw-photos', DrawPhotoController::class)
+    ->name('draw-photos.index');
 Route::get('/draw-winners', DrawWinnerController::class)
     ->name('draw-winners.index');
 Route::get('/me', CurrentUserController::class)

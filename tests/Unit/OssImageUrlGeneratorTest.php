@@ -28,6 +28,7 @@ class OssImageUrlGeneratorTest extends TestCase
     public static function presetProvider(): array
     {
         return [
+            'cloud' => ['cloud', 'image/resize,m_fill,w_64,h_64/quality,q_70/format,webp'],
             'thumbnail' => ['thumbnail', 'image/resize,m_fill,w_400,h_400/quality,q_85/format,webp'],
             'gallery' => ['gallery', 'image/resize,l_1200/quality,q_90/format,webp'],
             'review' => ['review', 'image/resize,l_1600/quality,q_90/format,webp'],

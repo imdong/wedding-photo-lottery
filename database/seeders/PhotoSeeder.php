@@ -12,7 +12,7 @@ use Symfony\Component\Finder\SplFileInfo;
 
 class PhotoSeeder extends Seeder
 {
-    private const int PHOTO_COUNT = 24;
+    private const int PHOTO_COUNT = 68;
 
     private const int USER_COUNT = 8;
 
