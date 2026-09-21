@@ -880,12 +880,9 @@ function normalizeAngle(angle: number): number {
 }
 
 .sphere-photo-glow--highlighted {
-    filter: brightness(2.7) saturate(1.5) contrast(1.12);
-    box-shadow:
-        0 0 0 4px rgb(255 249 218 / 1),
-        0 0 28px 10px rgb(255 221 123 / 1),
-        0 0 64px 20px rgb(255 174 99 / 0.8);
-    transform: scale(1.8);
+    filter: brightness(1.85) saturate(1.2);
+    box-shadow: 0 0 0 2px rgb(255 239 190 / 0.9), 0 0 24px rgb(255 213 121 / 0.95);
+    transform: scale(1.32);
 }
 
 .focused-photo {

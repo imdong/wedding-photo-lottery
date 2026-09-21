@@ -383,7 +383,7 @@ function reviewStatusClasses(status: CurrentUserPhoto['review_status']): string 
 
 <template>
     <MobilePageShell>
-        <PageHeader eyebrow="定格此刻" title="分享你眼中的幸福" description="上传婚礼现场的照片，把每一个珍贵瞬间留在我们的共同相册里。" />
+        <PageHeader eyebrow="定格此刻" title="分享你眼中的幸福" description="上传婚礼现场相关照片，将获得现场抽奖机会，优质照片可提高中奖几率。" />
 
         <section class="rounded-card border border-dashed border-rose-300/80 bg-rose-50/55 px-6 py-10 text-center shadow-card">
             <div class="flex flex-col gap-2">
