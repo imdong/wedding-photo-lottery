@@ -12,10 +12,12 @@ use App\Models\PhotoLike;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use LogicException;
+use Tests\Support\AssertsJsonValues;
 use Tests\TestCase;
 
 class LotteryCandidateSnapshotServiceTest extends TestCase
 {
+    use AssertsJsonValues;
     use LazilyRefreshDatabase;
 
     public function test_freezes_current_weights_and_excludes_previous_winners(): void
@@ -65,8 +67,8 @@ class LotteryCandidateSnapshotServiceTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedSnapshot, $frozenRound->candidate_snapshot);
-        $this->assertSame([
+        $this->assertJsonValueSame($expectedSnapshot, $frozenRound->candidate_snapshot);
+        $this->assertJsonValueSame([
             'draw_count' => 2,
             'exclude_previous_winners' => true,
             'selection_mode' => 'user_then_photo',
@@ -78,7 +80,7 @@ class LotteryCandidateSnapshotServiceTest extends TestCase
             DrawRound::factory()->create(['draw_count' => 2]),
         );
 
-        $this->assertSame($expectedSnapshot, $frozenRound->refresh()->candidate_snapshot);
+        $this->assertJsonValueSame($expectedSnapshot, $frozenRound->refresh()->candidate_snapshot);
         $this->assertSame(1.106066, $newRound->candidate_snapshot['total_weight']);
     }
 

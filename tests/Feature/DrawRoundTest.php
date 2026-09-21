@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Enums\DrawRoundStatus;
 use App\Models\DrawRound;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Tests\Support\AssertsJsonValues;
 use Tests\TestCase;
 
 class DrawRoundTest extends TestCase
 {
+    use AssertsJsonValues;
     use LazilyRefreshDatabase;
 
     public function test_creates_and_serializes_an_empty_prepared_round(): void
@@ -53,13 +55,13 @@ class DrawRoundTest extends TestCase
 
         $persistedRound = DrawRound::query()->findOrFail($drawRound->id);
 
-        $this->assertSame([
+        $this->assertJsonValueSame([
             'users' => [
                 ['user_id' => 12, 'weight' => 2.8],
             ],
             'total_weight' => 2.8,
         ], $persistedRound->candidate_snapshot);
-        $this->assertSame([
+        $this->assertJsonValueSame([
             'selection_mode' => 'user_then_photo',
             'draw_count' => 1,
         ], $persistedRound->settings_snapshot);
