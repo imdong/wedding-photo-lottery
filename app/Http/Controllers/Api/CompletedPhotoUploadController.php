@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Photo;
 use App\Models\User;
 use App\OssObjectService;
+use App\PhotoUploadProcessingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,8 +18,12 @@ class CompletedPhotoUploadController extends Controller
     /**
      * Handle the incoming request.
      */
-    public function __invoke(Request $request, Photo $photo, OssObjectService $ossObjectService): JsonResponse
-    {
+    public function __invoke(
+        Request $request,
+        Photo $photo,
+        OssObjectService $ossObjectService,
+        PhotoUploadProcessingService $uploadProcessingService,
+    ): JsonResponse {
         /** @var User $user */
         $user = $request->user();
 
@@ -36,6 +41,8 @@ class CompletedPhotoUploadController extends Controller
                 'code' => 'object_not_found',
             ], Response::HTTP_CONFLICT);
         }
+
+        $uploadProcessingService->process($photo);
 
         $photo->update([
             'upload_status' => PhotoUploadStatus::Uploaded,

@@ -43,8 +43,11 @@ final readonly class PhotoUploadPreparationService
                     continue;
                 }
 
+                $objectKey = $this->makeObjectKey($user, $photoData['mime_type'], $photoData['file_size']);
+
                 $photo = $user->photos()->create([
-                    'object_key' => $this->makeObjectKey($user, $photoData['mime_type']),
+                    'object_key' => $objectKey,
+                    'original_object_key' => $objectKey,
                     'original_filename' => $photoData['filename'],
                     'original_file_hash' => $photoData['original_file_hash'],
                     'upload_file_hash' => $photoData['upload_file_hash'],
@@ -86,7 +89,7 @@ final readonly class PhotoUploadPreparationService
         return array_values(array_intersect($hashes, $knownHashes));
     }
 
-    private function makeObjectKey(User $user, string $mimeType): string
+    private function makeObjectKey(User $user, string $mimeType, int $fileSize): string
     {
         $extension = match ($mimeType) {
             'image/jpeg' => 'jpg',
@@ -95,11 +98,17 @@ final readonly class PhotoUploadPreparationService
             'image/heic' => 'heic',
         };
 
+        $baseName = (string) Str::orderedUuid();
+
+        if ($fileSize > (int) config('photos.large_original_size_bytes', 20 * 1024 * 1024)) {
+            $baseName .= '.orig';
+        }
+
         return sprintf(
             '%s/%s/%s.%s',
             $this->configuration->uploadPrefix,
             $user->getKey(),
-            Str::orderedUuid(),
+            $baseName,
             $extension,
         );
     }

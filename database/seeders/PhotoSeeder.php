@@ -72,6 +72,7 @@ class PhotoSeeder extends Seeder
                 ['object_key' => self::OSS_PREFIX.'/'.$filename],
                 [
                     'user_id' => $users[$index % $users->count()]->id,
+                    'original_object_key' => self::OSS_PREFIX.'/'.$filename,
                     'original_filename' => $filename,
                     'original_file_hash' => $fileHash,
                     'upload_file_hash' => $fileHash,

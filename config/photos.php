@@ -8,5 +8,6 @@ $allowedMimeTypes = array_values(array_filter(array_map(
 return [
     'max_batch_size' => (int) env('PHOTO_MAX_BATCH_SIZE', 20),
     'max_size_bytes' => (int) env('PHOTO_MAX_SIZE_MB', 30) * 1024 * 1024,
+    'large_original_size_bytes' => (int) env('PHOTO_LARGE_ORIGINAL_SIZE_MB', 20) * 1024 * 1024,
     'allowed_mime_types' => $allowedMimeTypes,
 ];

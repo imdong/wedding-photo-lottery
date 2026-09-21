@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'user_id',
     'object_key',
+    'original_object_key',
     'original_filename',
     'original_file_hash',
     'upload_file_hash',

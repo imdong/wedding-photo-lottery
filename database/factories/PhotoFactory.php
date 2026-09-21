@@ -21,9 +21,12 @@ class PhotoFactory extends Factory
      */
     public function definition(): array
     {
+        $objectKey = 'photos/'.Str::uuid().'.jpg';
+
         return [
             'user_id' => User::factory(),
-            'object_key' => 'photos/'.Str::uuid().'.jpg',
+            'object_key' => $objectKey,
+            'original_object_key' => $objectKey,
             'original_filename' => fake()->lexify('IMG_????').'.jpg',
             'original_file_hash' => hash('sha256', 'original-'.Str::random(64)),
             'upload_file_hash' => hash('sha256', 'upload-'.Str::random(64)),

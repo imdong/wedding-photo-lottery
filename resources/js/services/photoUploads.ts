@@ -72,7 +72,7 @@ export async function preparePhotoUploads(photos: PhotoPreparationInput[]): Prom
 }
 
 export async function completePhotoUpload(photoId: number): Promise<CompletedPhotoUpload> {
-    const response = await api.post<CompletedPhotoUpload>(`/uploads/${photoId}/complete`);
+    const response = await api.post<CompletedPhotoUpload>(`/uploads/${photoId}/complete`, undefined, { timeout: 20_000 });
 
     return response.data;
 }

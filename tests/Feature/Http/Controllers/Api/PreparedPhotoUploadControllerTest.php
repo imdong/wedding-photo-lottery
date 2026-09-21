@@ -100,6 +100,35 @@ class PreparedPhotoUploadControllerTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_marks_large_photos_with_an_original_upload_key(): void
+    {
+        Http::fake([
+            'https://sts.cn-qingdao.aliyuncs.com' => Http::response($this->stsResponse()),
+        ]);
+        [, $plainTextToken] = $this->authenticatedUser();
+
+        $response = $this->withToken($plainTextToken)
+            ->postJson('/api/uploads/prepare', [
+                'photos' => [
+                    $this->validPhoto([
+                        'file_size' => 21 * 1024 * 1024,
+                        'filename' => 'large-photo.png',
+                        'mime_type' => 'image/png',
+                    ]),
+                ],
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('photos.0.status', 'ready');
+
+        $photo = Photo::query()->findOrFail($response->json('photos.0.photo_id'));
+
+        $this->assertStringContainsString('.orig.', $photo->object_key);
+        $this->assertSame($photo->object_key, $photo->original_object_key);
+        $this->assertStringContainsString('.orig.', (string) $response->json('photos.0.object_key'));
+    }
+
     public function test_skips_cross_field_hash_matches_uploaded_by_another_user(): void
     {
         Http::fake([

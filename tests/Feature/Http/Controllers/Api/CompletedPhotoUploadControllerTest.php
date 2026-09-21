@@ -109,6 +109,48 @@ class CompletedPhotoUploadControllerTest extends TestCase
         });
     }
 
+    public function test_processes_large_photos_into_a_displayable_object_before_marking_uploaded(): void
+    {
+        $this->travelTo('2026-09-20 08:00:00');
+        config(['photos.large_original_size_bytes' => 1]);
+
+        Http::fake([
+            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*OSSAccessKeyId=*' => function (Request $request) {
+                if ($request->method() === 'GET') {
+                    return Http::response(base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='), 200, [
+                        'Content-Type' => 'image/png',
+                    ]);
+                }
+
+                return Http::response('', 200);
+            },
+            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*' => Http::response('', 200),
+        ]);
+        [$user, $plainTextToken] = $this->authenticatedUser();
+        $photo = Photo::factory()->for($user)->create([
+            'object_key' => 'wedding/photos/42/my photo.orig.png',
+            'original_object_key' => 'wedding/photos/42/my photo.orig.png',
+            'mime_type' => 'image/png',
+            'file_size' => 2,
+        ]);
+
+        $this->withToken($plainTextToken)
+            ->postJson("/api/uploads/{$photo->id}/complete")
+            ->assertOk()
+            ->assertExactJson([
+                'id' => $photo->id,
+                'upload_status' => 'uploaded',
+                'review_status' => 'pending',
+            ]);
+
+        $photo->refresh();
+        $this->assertSame(PhotoUploadStatus::Uploaded, $photo->upload_status);
+        $this->assertSame(PhotoReviewStatus::Pending, $photo->review_status);
+        $this->assertSame('wedding/photos/42/my photo.orig.png', $photo->original_object_key);
+        $this->assertSame('wedding/photos/42/my photo.webp', $photo->object_key);
+        Http::assertSentCount(3);
+    }
+
     public function test_returns_an_already_uploaded_photo_without_checking_oss_again(): void
     {
         [$user, $plainTextToken] = $this->authenticatedUser();
