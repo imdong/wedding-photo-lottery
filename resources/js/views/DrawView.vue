@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { isAxiosError } from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import PhotoDysonCloud from '../components/PhotoDysonCloud.vue';
 import {
     executeDrawRound,
+    fetchDrawHistory,
     fetchDrawPhotos,
     flattenCandidatePhotos,
     preloadCandidateDrawImages,
@@ -13,6 +14,7 @@ import {
     type DrawDisplayPhoto,
     type DrawResult,
     type DrawImagePreloadProgress,
+    type DrawWinner,
     type PreparedDrawRound,
 } from '../services/drawRounds';
 
@@ -25,6 +27,7 @@ type DrawRequestStatus = 'idle' | 'requesting' | 'ready' | 'error';
 type PhotoCloudAnimationStatus = 'idle' | 'running' | 'complete';
 type PhotoDisplayStatus = 'loading' | 'ready' | 'error';
 
+const pendingDrawRoundStorageKey = 'wedding.pending-draw-round-id';
 const candidatePhotos = ref<DrawCandidatePhoto[]>([]);
 const displayPhotos = ref<DrawDisplayPhoto[]>([]);
 const photoDisplayStatus = ref<PhotoDisplayStatus>('loading');
@@ -33,10 +36,14 @@ const preparedRound = ref<PreparedDrawRound | null>(null);
 const preparationStatus = ref<PreparationStatus>('idle');
 const preparationError = ref('');
 const drawResult = ref<DrawResult | null>(null);
+const drawHistory = ref<DrawResult[]>([]);
+const drawHistoryError = ref(false);
 const drawRequestStatus = ref<DrawRequestStatus>('idle');
 const drawError = ref('');
 const drawAnimationActive = ref(false);
 const photoCloudAnimationStatus = ref<PhotoCloudAnimationStatus>('idle');
+const activeWinnerIndex = ref<number | null>(null);
+const revealedWinners = ref<DrawWinner[]>([]);
 const failedDrawImageIds = ref(new Set<number>());
 const preloadProgress = ref<DrawImagePreloadProgress>({
     completed: 0,
@@ -77,6 +84,20 @@ const canStartDraw = computed(() => (
     && drawRequestStatus.value !== 'requesting'
     && preloadProgress.value.total > 0
     && preloadProgress.value.completed === preloadProgress.value.total
+));
+const activeWinner = computed(() => {
+    if (activeWinnerIndex.value === null) {
+        return null;
+    }
+
+    return drawResult.value?.winners[activeWinnerIndex.value] ?? null;
+});
+const winnerSlots = computed(() => Array.from(
+    { length: preparedRound.value?.draw_count ?? 3 },
+    (_, index) => ({
+        position: index + 1,
+        winner: revealedWinners.value.find((winner) => winner.position === index + 1) ?? null,
+    }),
 ));
 const stageStatus = computed(() => {
     if (photoCloudAnimationStatus.value === 'running') {
@@ -123,10 +144,16 @@ const stageStatus = computed(() => {
 
     return '照片云旋转中';
 });
+let nextWinnerTimerId: number | null = null;
 
 onMounted(() => {
     void loadDisplayPhotos();
+    void refreshDrawHistory(true);
     void prepareRound();
+});
+
+onBeforeUnmount(() => {
+    clearNextWinnerTimer();
 });
 
 watch(candidatePhotos, async (photos) => {
@@ -144,8 +171,41 @@ function handleWinnerFocusStart(): void {
 }
 
 function handleWinnerFocusComplete(): void {
+    const winner = activeWinner.value;
+
+    if (winner === null || activeWinnerIndex.value === null || drawResult.value === null) {
+        photoCloudAnimationStatus.value = 'complete';
+        drawAnimationActive.value = false;
+
+        return;
+    }
+
+    if (! revealedWinners.value.some((revealedWinner) => revealedWinner.position === winner.position)) {
+        revealedWinners.value = [...revealedWinners.value, winner];
+    }
+
+    const nextIndex = activeWinnerIndex.value + 1;
+
+    if (nextIndex < drawResult.value.winners.length) {
+        clearNextWinnerTimer();
+        nextWinnerTimerId = window.setTimeout(() => {
+            activeWinnerIndex.value = nextIndex;
+            nextWinnerTimerId = null;
+        }, 2_200);
+
+        return;
+    }
+
     photoCloudAnimationStatus.value = 'complete';
     drawAnimationActive.value = false;
+    void refreshDrawHistory();
+}
+
+function clearNextWinnerTimer(): void {
+    if (nextWinnerTimerId !== null) {
+        window.clearTimeout(nextWinnerTimerId);
+        nextWinnerTimerId = null;
+    }
 }
 
 function markDrawImageAsFailed(photoId: number): void {
@@ -165,6 +225,45 @@ async function loadDisplayPhotos(): Promise<void> {
     }
 }
 
+async function refreshDrawHistory(restorePendingResult = false): Promise<void> {
+    try {
+        drawHistory.value = await fetchDrawHistory();
+        drawHistoryError.value = false;
+
+        if (restorePendingResult) {
+            const pendingRoundId = storedPendingDrawRoundId();
+            const recoveredResult = pendingRoundId === null
+                ? null
+                : drawHistory.value.find((round) => round.round_id === pendingRoundId) ?? null;
+
+            if (recoveredResult !== null) {
+                drawResult.value = recoveredResult;
+                revealedWinners.value = [...recoveredResult.winners];
+                drawRequestStatus.value = 'ready';
+                photoCloudAnimationStatus.value = 'complete';
+                forgetPendingDrawRound();
+            }
+        }
+    } catch {
+        drawHistoryError.value = true;
+    }
+}
+
+async function recoverSavedDrawResult(roundId: number): Promise<DrawResult | null> {
+    try {
+        const rounds = await fetchDrawHistory();
+
+        drawHistory.value = rounds;
+        drawHistoryError.value = false;
+
+        return rounds.find((round) => round.round_id === roundId) ?? null;
+    } catch {
+        drawHistoryError.value = true;
+
+        return null;
+    }
+}
+
 async function prepareRound(): Promise<void> {
     if (preparationStatus.value === 'preparing' || preparedRound.value !== null) {
         return;
@@ -179,6 +278,11 @@ async function prepareRound(): Promise<void> {
         preparedRound.value = round;
         candidatePhotos.value = flattenCandidatePhotos(round);
         preparationStatus.value = 'prepared';
+
+        if (storedPendingDrawRoundId() === round.id && drawResult.value === null) {
+            drawRequestStatus.value = 'error';
+            drawError.value = '上次抽奖结果尚未确认，请重试获取。';
+        }
     } catch (error: unknown) {
         preparationError.value = isAxiosError<ApiErrorResponse>(error)
             ? error.response?.data.message ?? '准备失败，请稍后重试。'
@@ -195,17 +299,60 @@ async function startDraw(): Promise<void> {
     drawRequestStatus.value = 'requesting';
     drawError.value = '';
     drawAnimationActive.value = true;
+    photoCloudAnimationStatus.value = 'idle';
+    revealedWinners.value = [];
+    activeWinnerIndex.value = null;
+    clearNextWinnerTimer();
+    rememberPendingDrawRound(preparedRound.value.id);
 
     try {
         drawResult.value = await executeDrawRound(preparedRound.value.id);
+        forgetPendingDrawRound();
         drawRequestStatus.value = 'ready';
+        activeWinnerIndex.value = drawResult.value.winners.length > 0 ? 0 : null;
+
+        if (activeWinnerIndex.value === null) {
+            drawAnimationActive.value = false;
+            photoCloudAnimationStatus.value = 'complete';
+        }
     } catch (error: unknown) {
+        const recoveredResult = await recoverSavedDrawResult(preparedRound.value.id);
+
+        if (recoveredResult !== null) {
+            forgetPendingDrawRound();
+            drawResult.value = recoveredResult;
+            drawRequestStatus.value = 'ready';
+            drawError.value = '';
+            activeWinnerIndex.value = recoveredResult.winners.length > 0 ? 0 : null;
+
+            if (activeWinnerIndex.value === null) {
+                drawAnimationActive.value = false;
+                photoCloudAnimationStatus.value = 'complete';
+            }
+
+            return;
+        }
+
         drawError.value = isAxiosError<ApiErrorResponse>(error)
             ? error.response?.data.message ?? '抽奖失败，请稍后重试。'
             : '抽奖失败，请稍后重试。';
         drawRequestStatus.value = 'error';
         drawAnimationActive.value = false;
     }
+}
+
+function rememberPendingDrawRound(roundId: number): void {
+    window.localStorage.setItem(pendingDrawRoundStorageKey, String(roundId));
+}
+
+function forgetPendingDrawRound(): void {
+    window.localStorage.removeItem(pendingDrawRoundStorageKey);
+}
+
+function storedPendingDrawRoundId(): number | null {
+    const storedRoundId = Number(window.localStorage.getItem(pendingDrawRoundStorageKey));
+
+    return Number.isInteger(storedRoundId) && storedRoundId > 0 ? storedRoundId : null;
 }
 </script>
 
@@ -261,7 +408,7 @@ async function startDraw(): Promise<void> {
                             :drawing="drawAnimationActive"
                             :failed-draw-image-ids="failedDrawImageIds"
                             :photos="displayPhotos"
-                            :winner="drawResult?.winners[0] ?? null"
+                            :winner="activeWinner"
                             @draw-image-error="markDrawImageAsFailed"
                             @winner-focus-complete="handleWinnerFocusComplete"
                             @winner-focus-start="handleWinnerFocusStart"
@@ -296,7 +443,7 @@ async function startDraw(): Promise<void> {
                                 :disabled="!canStartDraw"
                                 @click="startDraw"
                             >
-                                {{ drawRequestStatus === 'requesting' ? '正在确定…' : photoCloudAnimationStatus === 'running' ? '抽奖进行中…' : drawResult === null ? '开始抽奖' : '等待揭晓' }}
+                                {{ drawRequestStatus === 'requesting' ? '正在确定…' : photoCloudAnimationStatus === 'running' ? '抽奖进行中…' : drawRequestStatus === 'error' ? '重试获取结果' : drawResult === null ? '开始抽奖' : '等待揭晓' }}
                             </BaseButton>
                         </div>
                     </div>
@@ -310,32 +457,71 @@ async function startDraw(): Promise<void> {
                                 <h2 class="mt-2 font-display text-2xl font-semibold 2xl:text-3xl">本轮幸运时刻</h2>
                             </div>
                             <span class="rounded-pill bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700">
-                                {{ photoCloudAnimationStatus === 'running' ? '照片流转中' : drawResult === null ? '尚未开始' : '结果待揭晓' }}
+                                {{ photoCloudAnimationStatus === 'complete' ? '本轮已揭晓' : photoCloudAnimationStatus === 'running' ? `正在揭晓 ${revealedWinners.length + 1}/${drawResult?.winners.length ?? preparedRound?.draw_count ?? 3}` : drawResult === null ? '尚未开始' : '结果待揭晓' }}
                             </span>
                         </div>
                     </div>
 
                     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-5 2xl:gap-4 2xl:p-7">
                         <div
-                            v-for="position in preparedRound?.draw_count ?? 3"
-                            :key="position"
-                            class="flex min-h-0 flex-1 items-center gap-4 rounded-2xl border border-dashed border-rose-300/55 bg-white/70 p-3.5 2xl:p-4"
+                            v-for="slot in winnerSlots"
+                            :key="slot.position"
+                            :class="[
+                                'flex min-h-0 flex-1 items-center gap-4 rounded-2xl p-3.5 transition-colors duration-500 2xl:p-4',
+                                slot.winner === null ? 'border border-dashed border-rose-300/55 bg-white/70' : 'border border-gold-300/60 bg-linear-to-r from-gold-50 to-white shadow-[0_12px_35px_rgb(116_85_45_/_0.1)]',
+                            ]"
                         >
-                            <div class="grid size-14 shrink-0 place-items-center rounded-xl bg-rose-50 text-sm font-semibold text-rose-500 2xl:size-16">
-                                {{ position }}
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="h-2.5 w-24 rounded-full bg-rose-100"></div>
-                                <div class="mt-2.5 h-2 w-16 rounded-full bg-gold-100"></div>
-                            </div>
-                            <span class="text-xs text-ink-500">待揭晓</span>
+                            <template v-if="slot.winner !== null">
+                                <img
+                                    :src="slot.winner.photo.draw_url"
+                                    :alt="`第 ${slot.position} 位中奖照片`"
+                                    class="size-14 shrink-0 rounded-xl border border-gold-200 object-cover shadow-sm 2xl:size-16"
+                                />
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-xs font-semibold tracking-[0.16em] text-gold-500 uppercase">第 {{ slot.position }} 位</p>
+                                    <p class="mt-1 truncate font-display text-base font-semibold text-ink-950 2xl:text-lg">
+                                        手机尾号 {{ slot.winner.phone_suffix }}
+                                    </p>
+                                </div>
+                                <span class="shrink-0 rounded-pill bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">已揭晓</span>
+                            </template>
+                            <template v-else>
+                                <div class="grid size-14 shrink-0 place-items-center rounded-xl bg-rose-50 text-sm font-semibold text-rose-500 2xl:size-16">
+                                    {{ slot.position }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="h-2.5 w-24 rounded-full bg-rose-100"></div>
+                                    <div class="mt-2.5 h-2 w-16 rounded-full bg-gold-100"></div>
+                                </div>
+                                <span class="text-xs text-ink-500">待揭晓</span>
+                            </template>
                         </div>
                     </div>
 
-                    <div class="border-t border-rose-100 bg-white/55 px-6 py-5 2xl:px-8">
+                    <div class="max-h-48 overflow-y-auto border-t border-rose-100 bg-white/55 px-6 py-4 2xl:px-8">
                         <div class="flex items-center justify-between text-sm">
                             <span class="font-semibold text-ink-700">历史中奖</span>
-                            <span class="text-ink-500">暂无记录</span>
+                            <span class="text-xs text-ink-500">{{ drawHistory.length > 0 ? `${drawHistory.length} 轮` : drawHistoryError ? '读取失败' : '暂无记录' }}</span>
+                        </div>
+
+                        <div v-if="drawHistory.length > 0" class="mt-3 flex flex-col gap-2">
+                            <div
+                                v-for="round in drawHistory.slice(0, 3)"
+                                :key="round.round_id"
+                                class="flex items-center gap-3 rounded-xl border border-rose-100 bg-white/80 px-3 py-2"
+                            >
+                                <span class="shrink-0 text-xs font-semibold text-rose-600">第 {{ round.round_number }} 轮</span>
+                                <div class="flex min-w-0 flex-1 justify-end gap-1.5 overflow-hidden">
+                                    <div
+                                        v-for="winner in round.winners"
+                                        :key="winner.position"
+                                        class="flex shrink-0 items-center gap-1 rounded-pill bg-gold-50 py-1 pr-2 pl-1 text-[0.68rem] text-ink-700"
+                                    >
+                                        <img :src="winner.photo.draw_url" alt="" class="size-6 rounded-full object-cover" />
+                                        <span>{{ winner.phone_suffix }}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </aside>

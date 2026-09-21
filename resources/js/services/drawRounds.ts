@@ -83,6 +83,12 @@ export async function fetchDrawPhotos(): Promise<DrawDisplayPhoto[]> {
     return response.data.photos;
 }
 
+export async function fetchDrawHistory(): Promise<DrawResult[]> {
+    const response = await api.get<{ rounds: DrawResult[] }>('/draw-winners');
+
+    return response.data.rounds;
+}
+
 export async function prepareDrawRound(): Promise<PreparedDrawRound> {
     const response = await api.post<PreparedDrawRound>('/draw-rounds');
 

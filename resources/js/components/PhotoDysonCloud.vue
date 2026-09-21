@@ -137,7 +137,14 @@ watch(
             return;
         }
 
+        const isSubsequentWinner = drawPhase === 'stopped';
+
         cancelFocusSequence();
+
+        if (isSubsequentWinner) {
+            startRapidSpin();
+        }
+
         await nextTick();
 
         const particle = winnerParticle(winner.photo.id);
@@ -152,9 +159,10 @@ watch(
 
         const sequence = focusSequence;
         const rapidSpinElapsed = performance.now() - rapidSpinStartedAt;
+        const minimumRapidSpin = isSubsequentWinner ? 1_600 : 2_400;
         const remainingRapidSpin = rapidSpinStartedAt === 0
             ? 0
-            : Math.max(0, 2_400 - rapidSpinElapsed);
+            : Math.max(0, minimumRapidSpin - rapidSpinElapsed);
 
         if (remainingRapidSpin > 0) {
             await wait(remainingRapidSpin);
@@ -683,6 +691,17 @@ function normalizeAngle(angle: number): number {
                 @error="markFocusedImageAsFailed(focusedPhoto.photoId)"
             />
             <div v-else class="grid h-full w-full place-items-center rounded-xl bg-linear-to-br from-rose-100/70 to-gold-100/60 font-display text-5xl text-rose-700">囍</div>
+
+            <div
+                v-if="winner !== null"
+                class="pointer-events-none absolute inset-x-4 bottom-4 flex items-end justify-between gap-4 rounded-xl border border-white/20 bg-black/55 px-4 py-3 text-white shadow-lg backdrop-blur-md"
+            >
+                <div>
+                    <p class="text-[0.65rem] font-semibold tracking-[0.2em] text-gold-200 uppercase">第 {{ winner.position }} 位幸运时刻</p>
+                    <p class="mt-1 font-display text-xl font-semibold tracking-wider">手机号尾号 {{ winner.phone_suffix }}</p>
+                </div>
+                <span class="shrink-0 font-display text-3xl text-gold-200">囍</span>
+            </div>
         </div>
     </div>
 </template>
