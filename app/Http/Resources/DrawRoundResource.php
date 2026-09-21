@@ -32,6 +32,7 @@ class DrawRoundResource extends JsonResource
 
                         return [
                             'photo_id' => $photo['photo_id'],
+                            'thumbnail_url' => $this->imageUrlGenerator->thumbnail($objectKey),
                             'draw_url' => $this->imageUrlGenerator->draw($objectKey),
                             ...collect($photo)->except('photo_id')->all(),
                         ];

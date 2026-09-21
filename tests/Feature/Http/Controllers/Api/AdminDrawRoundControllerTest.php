@@ -94,6 +94,7 @@ class AdminDrawRoundControllerTest extends TestCase
             ->assertJsonPath('status', 'prepared')
             ->assertJsonPath('candidate_snapshot.total_weight', 2.8)
             ->assertJsonPath('candidate_snapshot.users.0.phone_suffix', '5678')
+            ->assertJsonPath('candidate_snapshot.users.0.photos.0.thumbnail_url', $this->thumbnailUrl($normalPhoto->object_key))
             ->assertJsonPath('candidate_snapshot.users.0.photos.0.draw_url', $this->drawUrl($normalPhoto->object_key))
             ->assertJsonPath('candidate_snapshot.users.1.phone_suffix', '4321')
             ->assertJsonPath('candidate_snapshot.users.1.photos.0.draw_url', $this->drawUrl($featuredPhoto->object_key))
@@ -121,7 +122,16 @@ class AdminDrawRoundControllerTest extends TestCase
 
     private function drawUrl(string $objectKey): string
     {
-        $process = 'image/resize,l_1920/quality,q_92/format,webp';
+        return $this->imageUrl($objectKey, 'image/resize,l_1920/quality,q_92/format,webp');
+    }
+
+    private function thumbnailUrl(string $objectKey): string
+    {
+        return $this->imageUrl($objectKey, 'image/resize,m_fill,w_400,h_400/quality,q_85/format,webp');
+    }
+
+    private function imageUrl(string $objectKey, string $process): string
+    {
         $expires = 1789988400;
         $signature = base64_encode(hash_hmac(
             'sha1',
