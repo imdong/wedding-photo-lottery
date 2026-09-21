@@ -33,7 +33,10 @@ final readonly class OssImageUrlGenerator
 
     private function generate(string $objectKey, string $process): string
     {
-        $expires = now()->addSeconds($this->configuration->imageUrlTtlSeconds)->timestamp;
+        $expires = now($this->configuration->imageUrlTimezone)
+            ->startOfDay()
+            ->addDay()
+            ->timestamp;
         $canonicalResource = sprintf(
             '/%s/%s?x-oss-process=%s',
             $this->configuration->bucket,

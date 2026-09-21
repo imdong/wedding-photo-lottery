@@ -101,7 +101,7 @@ class CurrentUserPhotoControllerTest extends TestCase
     private function thumbnailUrl(string $objectKey): string
     {
         $process = 'image/resize,m_fill,w_400,h_400/quality,q_85/format,webp';
-        $expires = 1789894800;
+        $expires = 1789920000;
         $bucket = (string) config('oss.bucket');
         $signature = base64_encode(hash_hmac(
             'sha1',

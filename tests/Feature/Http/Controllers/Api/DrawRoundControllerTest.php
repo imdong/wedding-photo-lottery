@@ -31,7 +31,7 @@ class DrawRoundControllerTest extends TestCase
             'oss.role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'oss.sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',
             'oss.temporary_credential_ttl_seconds' => 900,
-            'oss.image_url_ttl_seconds' => 3600,
+            'oss.image_url_timezone' => 'Asia/Shanghai',
             'oss.upload_prefix' => 'wedding/photos',
         ]);
     }

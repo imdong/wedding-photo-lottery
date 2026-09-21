@@ -2,6 +2,7 @@
 
 namespace App;
 
+use DateTimeZone;
 use RuntimeException;
 
 final readonly class OssConfiguration
@@ -19,7 +20,7 @@ final readonly class OssConfiguration
         public string $stsEndpoint,
         public int $temporaryCredentialTtlSeconds,
         public string $uploadPrefix,
-        public int $imageUrlTtlSeconds = 3600,
+        public string $imageUrlTimezone = 'Asia/Shanghai',
     ) {}
 
     public static function fromConfig(): self
@@ -35,6 +36,7 @@ final readonly class OssConfiguration
             'public_url' => ['label' => 'ALIYUN_OSS_PUBLIC_URL', 'value' => config('oss.public_url')],
             'role_arn' => ['label' => 'ALIYUN_OSS_ROLE_ARN', 'value' => config('oss.role_arn')],
             'sts_endpoint' => ['label' => 'ALIYUN_STS_ENDPOINT', 'value' => config('oss.sts_endpoint')],
+            'image_url_timezone' => ['label' => 'ALIYUN_OSS_IMAGE_URL_TIMEZONE', 'value' => config('oss.image_url_timezone', 'Asia/Shanghai')],
             'upload_prefix' => ['label' => 'ALIYUN_OSS_UPLOAD_PREFIX', 'value' => config('oss.upload_prefix')],
         ];
 
@@ -47,7 +49,6 @@ final readonly class OssConfiguration
         }
 
         $temporaryCredentialTtlSeconds = config('oss.temporary_credential_ttl_seconds');
-        $imageUrlTtlSeconds = (int) config('oss.image_url_ttl_seconds', 3600);
 
         if (
             ! is_int($temporaryCredentialTtlSeconds)
@@ -64,8 +65,8 @@ final readonly class OssConfiguration
             ));
         }
 
-        if ($imageUrlTtlSeconds < 60 || $imageUrlTtlSeconds > 32_400) {
-            throw new RuntimeException('OSS 配置缺失或无效：ALIYUN_OSS_IMAGE_URL_TTL_SECONDS。请在 .env 中补充后重试。');
+        if (! in_array(trim($values['image_url_timezone']['value']), DateTimeZone::listIdentifiers(), true)) {
+            throw new RuntimeException('OSS 配置缺失或无效：ALIYUN_OSS_IMAGE_URL_TIMEZONE。请在 .env 中补充后重试。');
         }
 
         return new self(
@@ -81,7 +82,7 @@ final readonly class OssConfiguration
             stsEndpoint: rtrim(trim($values['sts_endpoint']['value']), '/'),
             temporaryCredentialTtlSeconds: $temporaryCredentialTtlSeconds,
             uploadPrefix: trim($values['upload_prefix']['value'], '/'),
-            imageUrlTtlSeconds: $imageUrlTtlSeconds,
+            imageUrlTimezone: trim($values['image_url_timezone']['value']),
         );
     }
 }

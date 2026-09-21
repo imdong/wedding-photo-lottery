@@ -31,7 +31,7 @@ class NextAdminReviewControllerTest extends TestCase
             'oss.role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'oss.sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',
             'oss.temporary_credential_ttl_seconds' => 900,
-            'oss.image_url_ttl_seconds' => 3600,
+            'oss.image_url_timezone' => 'Asia/Shanghai',
             'oss.upload_prefix' => 'wedding/photos',
         ]);
     }
@@ -131,7 +131,7 @@ class NextAdminReviewControllerTest extends TestCase
     private function reviewUrl(string $objectKey): string
     {
         $process = 'image/resize,l_1600/quality,q_90/format,webp';
-        $expires = 1789894800;
+        $expires = 1789920000;
         $signature = base64_encode(hash_hmac(
             'sha1',
             "GET\n\n\n{$expires}\n/example-wedding-photos/{$objectKey}?x-oss-process={$process}",

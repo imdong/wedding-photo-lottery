@@ -33,7 +33,7 @@ class AdminDrawRoundControllerTest extends TestCase
             'oss.role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'oss.sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',
             'oss.temporary_credential_ttl_seconds' => 900,
-            'oss.image_url_ttl_seconds' => 3600,
+            'oss.image_url_timezone' => 'Asia/Shanghai',
             'oss.upload_prefix' => 'wedding/photos',
         ]);
     }
@@ -139,6 +139,34 @@ class AdminDrawRoundControllerTest extends TestCase
         $this->assertDatabaseCount('draw_rounds', 1);
     }
 
+    public function test_public_route_replaces_a_prepared_multi_winner_round_with_a_single_winner_round(): void
+    {
+        $user = User::factory()->create();
+        Photo::factory()->for($user)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Normal,
+        ]);
+        DrawRound::factory()->create([
+            'round_number' => 1,
+            'draw_count' => 3,
+            'candidate_snapshot' => [
+                'users' => [['user_id' => 999]],
+                'total_weight' => 1.0,
+            ],
+        ]);
+
+        $this->postJson('/api/draw-rounds')
+            ->assertCreated()
+            ->assertJsonPath('round_number', 2)
+            ->assertJsonPath('draw_count', 1);
+
+        $this->assertDatabaseCount('draw_rounds', 2);
+        $this->assertDatabaseHas('draw_rounds', [
+            'round_number' => 2,
+            'draw_count' => 1,
+        ]);
+    }
+
     private function adminToken(): string
     {
         return app(AdminTokenService::class)->issue()['token'];
@@ -156,7 +184,7 @@ class AdminDrawRoundControllerTest extends TestCase
 
     private function imageUrl(string $objectKey, string $process): string
     {
-        $expires = 1789988400;
+        $expires = 1790006400;
         $signature = base64_encode(hash_hmac(
             'sha1',
             "GET\n\n\n{$expires}\n/example-wedding-photos/{$objectKey}?x-oss-process={$process}",

@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\OssConfiguration;
 use App\OssImageUrlGenerator;
+use Carbon\CarbonImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -20,7 +21,7 @@ class OssImageUrlGeneratorTest extends TestCase
         $this->assertStringStartsWith('https://images.example.test/wedding/photos/1/photo.jpg?', $url);
         $this->assertStringContainsString('x-oss-process='.rawurlencode($process), $url);
         $this->assertStringContainsString('OSSAccessKeyId=test-access-key-id', $url);
-        $this->assertStringContainsString('Expires=1789894800', $url);
+        $this->assertStringContainsString('Expires=1789920000', $url);
         $this->assertMatchesRegularExpression('/&Signature=[^&]+$/', $url);
     }
 
@@ -43,7 +44,23 @@ class OssImageUrlGeneratorTest extends TestCase
 
         $url = $generator->thumbnail('wedding/photos/1/photo.jpg');
 
-        $this->assertStringEndsWith('Signature=V87o%2By9qRPxyjDg6KAq%2B1Kyf2Ro%3D', $url);
+        $this->assertStringEndsWith('Signature=yWUgg9BZTr%2BycYs9abmyns99940%3D', $url);
+    }
+
+    public function test_keeps_the_same_url_during_a_natural_day_and_rotates_it_at_midnight(): void
+    {
+        $generator = new OssImageUrlGenerator($this->configuration());
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 00:00:01', 'Asia/Shanghai'));
+        $urlAtStartOfDay = $generator->thumbnail('wedding/photos/1/photo.jpg');
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 23:59:59', 'Asia/Shanghai'));
+        $urlAtEndOfDay = $generator->thumbnail('wedding/photos/1/photo.jpg');
+        $this->travelTo(CarbonImmutable::parse('2026-09-21 00:00:00', 'Asia/Shanghai'));
+        $urlOnNextDay = $generator->thumbnail('wedding/photos/1/photo.jpg');
+
+        $this->assertSame($urlAtStartOfDay, $urlAtEndOfDay);
+        $this->assertNotSame($urlAtEndOfDay, $urlOnNextDay);
+        $this->assertStringContainsString('Expires=1790006400', $urlOnNextDay);
     }
 
     private function configuration(): OssConfiguration
@@ -61,7 +78,7 @@ class OssImageUrlGeneratorTest extends TestCase
             stsEndpoint: 'https://sts.cn-qingdao.aliyuncs.com',
             temporaryCredentialTtlSeconds: 900,
             uploadPrefix: 'wedding/photos',
-            imageUrlTtlSeconds: 3600,
+            imageUrlTimezone: 'Asia/Shanghai',
         );
     }
 }

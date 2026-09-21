@@ -31,6 +31,7 @@ final readonly class CreateDrawRoundService
             if (
                 $lastRound?->status === DrawRoundStatus::Prepared
                 && $lastRound->candidate_snapshot !== []
+                && $lastRound->draw_count === $drawCount
             ) {
                 return $lastRound;
             }

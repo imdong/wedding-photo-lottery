@@ -67,7 +67,37 @@ const emit = defineEmits<{
 }>();
 
 const ambientRotationSpeed = -1.25;
-const rapidRotationSpeed = -105;
+
+// 球体进入抽奖后的最高转速，绝对值越大旋转越快。
+const rapidRotationSpeed = -240;
+
+// 球体从环境转速加速到最高转速的速度，数值越大越快达到高速。
+const rapidSpinAcceleration = 12;
+
+// 首次抽奖至少保持高速旋转的时间；中奖结果提前返回时也会等待到这个时间。
+const initialRapidSpinDurationMilliseconds = 700;
+
+// 连续揭晓下一张照片时至少保持高速旋转的时间。
+const subsequentRapidSpinDurationMilliseconds = 400;
+
+// 球体从最高转速逐渐停下来的最短和最长时间。
+const sphereSlowdownMinimumDurationMilliseconds = 12_000;
+const sphereSlowdownMaximumDurationMilliseconds = 15_500;
+
+// 高亮快速切换时每张照片停留的时间，数值越小切换越快。
+const rapidHighlightIntervalMilliseconds = 60;
+
+// 减速曲线强度，数值越大越偏向前快后慢。
+const slowdownCurvePower = 7;
+
+// 球体减速期间至少继续旋转的圈数，避免过早停住。
+const slowdownMinimumTurns = 4;
+
+// 高亮接近最终结果时，单张照片最长可停留的时间。
+const slowdownMaximumHighlightIntervalMilliseconds = 1_500;
+
+// 高亮刹车力度：数值越大，越早从快速切换过渡到慢速切换。
+const highlightSlowdownCurvePower = 4;
 const stage = ref<HTMLElement | null>(null);
 const sphereRadius = ref(285);
 const sphereRotation = ref(0);
@@ -81,8 +111,10 @@ const scheduledTimeouts = new Set<number>();
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const deviceMemory = (navigator as NavigatorWithDeviceMemory).deviceMemory ?? 8;
 const isLowPerformanceDevice = navigator.hardwareConcurrency <= 4 || deviceMemory <= 4;
+const particleCount = isLowPerformanceDevice ? 440 : 680;
 let resizeObserver: ResizeObserver | null = null;
 let animationFrameId: number | null = null;
+let photoReplacementTimerId: number | null = null;
 let lastFrameAt = performance.now();
 let rotationVelocity = ambientRotationSpeed;
 let drawPhase: DrawPhase = 'ambient';
@@ -93,7 +125,7 @@ let rapidSpinStartedAt = 0;
 let slowdownStartedAt = 0;
 let slowdownStartRotation = 0;
 let slowdownTargetRotation = 0;
-let slowdownDurationMilliseconds = 7_000;
+let slowdownDurationMilliseconds = sphereSlowdownMinimumDurationMilliseconds;
 let pendingWinner: PendingWinner | null = null;
 
 watch(
@@ -145,9 +177,7 @@ watch(
             startRapidSpin();
         }
 
-        await nextTick();
-
-        const particle = winnerParticle(winner.photo.id);
+        const particle = await ensureWinnerParticle(winner.photo.id);
 
         emit('winnerFocusStart');
 
@@ -159,7 +189,9 @@ watch(
 
         const sequence = focusSequence;
         const rapidSpinElapsed = performance.now() - rapidSpinStartedAt;
-        const minimumRapidSpin = isSubsequentWinner ? 1_600 : 2_400;
+        const minimumRapidSpin = isSubsequentWinner
+            ? subsequentRapidSpinDurationMilliseconds
+            : initialRapidSpinDurationMilliseconds;
         const remainingRapidSpin = rapidSpinStartedAt === 0
             ? 0
             : Math.max(0, minimumRapidSpin - rapidSpinElapsed);
@@ -187,12 +219,14 @@ onMounted(() => {
     }
 
     updateSphereSize();
+    scheduleNextPhotoReplacement();
     lastFrameAt = performance.now();
     animationFrameId = window.requestAnimationFrame(animateSphere);
 });
 
 onBeforeUnmount(() => {
     cancelFocusSequence();
+    clearPhotoReplacementTimer();
     resizeObserver?.disconnect();
 
     if (animationFrameId !== null) {
@@ -205,11 +239,10 @@ function buildParticles(photos: DrawDisplayPhoto[]): CloudParticle[] {
         return [];
     }
 
-    const minimumParticleCount = isLowPerformanceDevice ? 220 : 340;
-    const particleCount = Math.max(photos.length, minimumParticleCount);
+    const shuffledPhotos = shufflePhotos(photos);
 
     return Array.from({ length: particleCount }, (_, index): CloudParticle => {
-        const photo = photos[index % photos.length];
+        const photo = shuffledPhotos[index % shuffledPhotos.length];
         const latitude = Math.asin(Math.random() * 2 - 1) * (180 / Math.PI);
 
         return {
@@ -228,6 +261,109 @@ function buildParticles(photos: DrawDisplayPhoto[]): CloudParticle[] {
     });
 }
 
+function shufflePhotos(photos: DrawDisplayPhoto[]): DrawDisplayPhoto[] {
+    const shuffledPhotos = [...photos];
+
+    for (let index = shuffledPhotos.length - 1; index > 0; index -= 1) {
+        const replacementIndex = Math.floor(Math.random() * (index + 1));
+        [shuffledPhotos[index], shuffledPhotos[replacementIndex]] = [
+            shuffledPhotos[replacementIndex],
+            shuffledPhotos[index],
+        ];
+    }
+
+    return shuffledPhotos;
+}
+
+function scheduleNextPhotoReplacement(): void {
+    clearPhotoReplacementTimer();
+    photoReplacementTimerId = window.setTimeout(() => {
+        replaceRandomPhoto();
+        scheduleNextPhotoReplacement();
+    }, 1_800 + Math.random() * 2_200);
+}
+
+function clearPhotoReplacementTimer(): void {
+    if (photoReplacementTimerId !== null) {
+        window.clearTimeout(photoReplacementTimerId);
+        photoReplacementTimerId = null;
+    }
+}
+
+function replaceRandomPhoto(): void {
+    if (
+        props.drawing
+        || drawPhase !== 'ambient'
+        || focusedPhoto.value !== null
+        || props.photos.length < 2
+    ) {
+        return;
+    }
+
+    const replaceableParticles = particles.value.filter(
+        (particle) => particle.key !== highlightedParticleKey.value,
+    );
+    const particle = replaceableParticles[Math.floor(Math.random() * replaceableParticles.length)];
+
+    if (particle === undefined) {
+        return;
+    }
+
+    const displayedPhotoIds = new Set(
+        particles.value.map((displayedParticle) => displayedParticle.photo.photo_id),
+    );
+    const unseenPhotos = props.photos.filter(
+        (photo) => ! displayedPhotoIds.has(photo.photo_id),
+    );
+    const replacementPhotos = unseenPhotos.length > 0
+        ? unseenPhotos
+        : props.photos.filter((photo) => photo.photo_id !== particle.photo.photo_id);
+    const replacementPhoto = replacementPhotos[
+        Math.floor(Math.random() * replacementPhotos.length)
+    ];
+
+    if (replacementPhoto === undefined) {
+        return;
+    }
+
+    const currentPhotoId = particle.photo.photo_id;
+    const image = new Image();
+
+    image.onload = () => {
+        if (
+            ! props.drawing
+            && drawPhase === 'ambient'
+            && particle.photo.photo_id === currentPhotoId
+            && particles.value.includes(particle)
+        ) {
+            particle.photo = replacementPhoto;
+        }
+    };
+    image.src = replacementPhoto.thumbnail_url;
+}
+
+async function ensureWinnerParticle(photoId: number): Promise<CloudParticle | null> {
+    const existingParticle = winnerParticle(photoId);
+
+    if (existingParticle !== null) {
+        return existingParticle;
+    }
+
+    const winnerPhoto = props.photos.find((photo) => photo.photo_id === photoId);
+    const particle = particlesNearFront()
+        .sort((first, second) => Math.abs(first.latitude) - Math.abs(second.latitude))[0]
+        ?? particles.value[0];
+
+    if (winnerPhoto === undefined || particle === undefined) {
+        return null;
+    }
+
+    particle.photo = winnerPhoto;
+    await nextTick();
+
+    return particle;
+}
+
 function animateSphere(now: number): void {
     const elapsedSeconds = Math.min((now - lastFrameAt) / 1_000, 0.08);
     lastFrameAt = now;
@@ -238,7 +374,7 @@ function animateSphere(now: number): void {
         const targetVelocity = drawPhase === 'spinning'
             ? rapidRotationSpeed
             : ambientRotationSpeed;
-        const acceleration = drawPhase === 'spinning' ? 3.8 : 1.2;
+        const acceleration = drawPhase === 'spinning' ? rapidSpinAcceleration : 1.2;
         const interpolation = Math.min(1, elapsedSeconds * acceleration);
 
         rotationVelocity += (targetVelocity - rotationVelocity) * interpolation;
@@ -246,7 +382,7 @@ function animateSphere(now: number): void {
 
         if (drawPhase === 'spinning' && now >= nextHighlightAt) {
             highlightRandomFrontParticle();
-            nextHighlightAt = now + 90;
+            nextHighlightAt = now + rapidHighlightIntervalMilliseconds;
         }
     }
 
@@ -258,14 +394,18 @@ function updateSlowdown(now: number): void {
         1,
         (now - slowdownStartedAt) / slowdownDurationMilliseconds,
     );
-    const easedProgress = 1 - (1 - progress) ** 2;
+    const easedProgress = 1 - (1 - progress) ** slowdownCurvePower;
 
     sphereRotation.value = slowdownStartRotation
         + (slowdownTargetRotation - slowdownStartRotation) * easedProgress;
 
     if (now >= nextHighlightAt && progress < 1) {
+        const brakingProgress = 1 - (1 - progress) ** highlightSlowdownCurvePower;
+        const highlightInterval = rapidHighlightIntervalMilliseconds
+            + brakingProgress * slowdownMaximumHighlightIntervalMilliseconds;
+
         highlightRandomFrontParticle();
-        nextHighlightAt = now + 90 + progress ** 2.4 * 1_150;
+        nextHighlightAt = now + highlightInterval;
     }
 
     if (progress >= 1) {
@@ -278,7 +418,8 @@ function startRapidSpin(): void {
     pendingWinner = null;
     drawPhase = 'spinning';
     rapidSpinStartedAt = performance.now();
-    nextHighlightAt = performance.now();
+    highlightRandomFrontParticle();
+    nextHighlightAt = rapidSpinStartedAt + rapidHighlightIntervalMilliseconds;
 }
 
 function returnToAmbientSpin(): void {
@@ -298,8 +439,11 @@ function beginSlowdown(winner: PendingWinner): void {
 
     const angularDistance = Math.abs(slowdownTargetRotation - slowdownStartRotation);
     slowdownDurationMilliseconds = Math.min(
-        11_000,
-        Math.max(6_000, angularDistance * 2 / Math.abs(rapidRotationSpeed) * 1_000),
+        sphereSlowdownMaximumDurationMilliseconds,
+        Math.max(
+            sphereSlowdownMinimumDurationMilliseconds,
+            angularDistance * slowdownCurvePower / Math.abs(rapidRotationSpeed) * 1_000,
+        ),
     );
     nextHighlightAt = slowdownStartedAt;
 }
@@ -318,13 +462,14 @@ function finishSlowdown(): void {
 
     scheduleTimeout(() => {
         void focusParticle(winner.particle, winner.imageUrl, true);
-    }, 650);
+    }, 1_000);
 }
 
 function targetRotationFor(particle: CloudParticle): number {
     let targetRotation = -particle.longitude;
+    const minimumAngularDistance = 360 * slowdownMinimumTurns;
 
-    while (targetRotation > sphereRotation.value - 300) {
+    while (targetRotation > sphereRotation.value - minimumAngularDistance) {
         targetRotation -= 360;
     }
 
@@ -407,8 +552,8 @@ function updateSphereSize(): void {
     }
 
     sphereRadius.value = Math.max(
-        205,
-        Math.min(400, stageElement.clientWidth * 0.34, stageElement.clientHeight * 0.43),
+        220,
+        Math.min(480, stageElement.clientWidth * 0.36, stageElement.clientHeight * 0.45),
     );
 }
 
@@ -553,7 +698,12 @@ async function focusParticle(
 
 function highlightRandomFrontParticle(): void {
     const visibleParticles = particlesNearFront();
-    const particle = visibleParticles[Math.floor(Math.random() * visibleParticles.length)];
+    const selectableParticles = visibleParticles.some(
+        (particle) => particle.key !== highlightedParticleKey.value,
+    )
+        ? visibleParticles.filter((particle) => particle.key !== highlightedParticleKey.value)
+        : visibleParticles;
+    const particle = selectableParticles[Math.floor(Math.random() * selectableParticles.length)];
 
     if (particle !== undefined) {
         highlightedParticleKey.value = particle.key;
@@ -653,7 +803,10 @@ function normalizeAngle(angle: number): number {
                 :key="particle.key"
                 :ref="(element) => setParticleElement(particle.key, element)"
                 class="absolute top-1/2 left-1/2 [transform-style:preserve-3d]"
-                :class="{ 'opacity-0': focusedPhoto?.particleKey === particle.key }"
+                :class="{
+                    'z-50': highlightedParticleKey === particle.key,
+                    'opacity-0': focusedPhoto?.particleKey === particle.key,
+                }"
                 :style="particleStyle(particle)"
             >
                 <div
@@ -662,7 +815,10 @@ function normalizeAngle(angle: number): number {
                 >
                     <div
                         class="sphere-photo-glow h-full w-full overflow-hidden rounded-md border border-white/35 bg-gold-100 shadow-[0_5px_16px_rgb(0_0_0_/_0.34)] [backface-visibility:hidden]"
-                        :class="{ 'sphere-photo-glow--highlighted': highlightedParticleKey === particle.key }"
+                        :class="{
+                            'sphere-photo-glow--drawing': drawing,
+                            'sphere-photo-glow--highlighted': highlightedParticleKey === particle.key,
+                        }"
                     >
                         <img
                             v-if="! failedThumbnailIds.has(particle.photo.photo_id)"
@@ -697,7 +853,7 @@ function normalizeAngle(angle: number): number {
                 class="pointer-events-none absolute inset-x-4 bottom-4 flex items-end justify-between gap-4 rounded-xl border border-white/20 bg-black/55 px-4 py-3 text-white shadow-lg backdrop-blur-md"
             >
                 <div>
-                    <p class="text-[0.65rem] font-semibold tracking-[0.2em] text-gold-200 uppercase">第 {{ winner.position }} 位幸运时刻</p>
+                    <p class="text-[0.65rem] font-semibold tracking-[0.2em] text-gold-200 uppercase">幸运照片</p>
                     <p class="mt-1 font-display text-xl font-semibold tracking-wider">手机号尾号 {{ winner.phone_suffix }}</p>
                 </div>
                 <span class="shrink-0 font-display text-3xl text-gold-200">囍</span>
@@ -719,10 +875,17 @@ function normalizeAngle(angle: number): number {
     transition: filter 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+.sphere-photo-glow--drawing {
+    transition-duration: 20ms;
+}
+
 .sphere-photo-glow--highlighted {
-    filter: brightness(1.85) saturate(1.2);
-    box-shadow: 0 0 0 2px rgb(255 239 190 / 0.9), 0 0 24px rgb(255 213 121 / 0.95);
-    transform: scale(1.32);
+    filter: brightness(2.7) saturate(1.5) contrast(1.12);
+    box-shadow:
+        0 0 0 4px rgb(255 249 218 / 1),
+        0 0 28px 10px rgb(255 221 123 / 1),
+        0 0 64px 20px rgb(255 174 99 / 0.8);
+    transform: scale(1.8);
 }
 
 .focused-photo {

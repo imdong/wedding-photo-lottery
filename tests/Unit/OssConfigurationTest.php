@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\OssConfiguration;
-use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -23,7 +22,7 @@ class OssConfigurationTest extends TestCase
         $this->assertSame('https://cdn.example.com', $configuration->publicUrl);
         $this->assertSame('acs:ram::123456789:role/wedding-photo-upload', $configuration->roleArn);
         $this->assertSame(900, $configuration->temporaryCredentialTtlSeconds);
-        $this->assertSame(3600, $configuration->imageUrlTtlSeconds);
+        $this->assertSame('Asia/Shanghai', $configuration->imageUrlTimezone);
         $this->assertSame('wedding/photos', $configuration->uploadPrefix);
     }
 
@@ -70,27 +69,17 @@ class OssConfigurationTest extends TestCase
         OssConfiguration::fromConfig();
     }
 
-    #[DataProvider('invalidImageUrlTtlProvider')]
-    public function test_rejects_invalid_image_url_ttl(int $ttl): void
+    public function test_rejects_invalid_image_url_timezone(): void
     {
         config()->set('oss', [
             ...$this->validConfiguration(),
-            'image_url_ttl_seconds' => $ttl,
+            'image_url_timezone' => 'Wedding/Reception',
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('ALIYUN_OSS_IMAGE_URL_TTL_SECONDS');
+        $this->expectExceptionMessage('ALIYUN_OSS_IMAGE_URL_TIMEZONE');
 
         OssConfiguration::fromConfig();
-    }
-
-    /** @return array<string, array{int}> */
-    public static function invalidImageUrlTtlProvider(): array
-    {
-        return [
-            'less than one minute' => [59],
-            'more than nine hours' => [32_401],
-        ];
     }
 
     /** @return array<string, mixed> */
@@ -108,7 +97,7 @@ class OssConfigurationTest extends TestCase
             'role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com/',
             'temporary_credential_ttl_seconds' => 900,
-            'image_url_ttl_seconds' => 3600,
+            'image_url_timezone' => 'Asia/Shanghai',
             'upload_prefix' => '/wedding/photos/',
         ];
     }

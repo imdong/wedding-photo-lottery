@@ -21,7 +21,7 @@ class DrawPhotoControllerTest extends TestCase
             'oss.access_key_secret' => 'test-access-key-secret',
             'oss.bucket' => 'example-wedding-photos',
             'oss.public_url' => 'https://images.example.test',
-            'oss.image_url_ttl_seconds' => 3600,
+            'oss.image_url_timezone' => 'Asia/Shanghai',
         ]);
     }
 
@@ -71,7 +71,7 @@ class DrawPhotoControllerTest extends TestCase
 
     private function imageUrl(string $objectKey, string $process): string
     {
-        $expires = 1789894800;
+        $expires = 1789920000;
         $signature = base64_encode(hash_hmac(
             'sha1',
             "GET\n\n\n{$expires}\n/example-wedding-photos/{$objectKey}?x-oss-process={$process}",
