@@ -132,9 +132,24 @@ let pendingWinner: PendingWinner | null = null;
 
 watch(
     () => props.photos,
-    async (photos) => {
-        cancelFocusSequence();
+    async (photos, previousPhotos) => {
         failedThumbnailIds.value = new Set();
+
+        if (photos.length > 0 && (previousPhotos?.length ?? 0) > 0 && particles.value.length > 0) {
+            const refreshedPhotosById = new Map(photos.map((photo) => [photo.photo_id, photo]));
+
+            for (const particle of particles.value) {
+                const refreshedPhoto = refreshedPhotosById.get(particle.photo.photo_id);
+
+                if (refreshedPhoto !== undefined) {
+                    particle.photo = refreshedPhoto;
+                }
+            }
+
+            return;
+        }
+
+        cancelFocusSequence();
         particleElements.clear();
         particles.value = buildParticles(photos);
         renderKey.value += 1;
@@ -297,7 +312,7 @@ function replaceRandomPhoto(): void {
         props.drawing
         || drawPhase !== 'ambient'
         || focusedPhoto.value !== null
-        || props.photos.length < 2
+        || props.photos.length === 0
     ) {
         return;
     }

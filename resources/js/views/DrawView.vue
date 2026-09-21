@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isAxiosError } from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import PhotoDysonCloud from '../components/PhotoDysonCloud.vue';
 import {
@@ -27,6 +27,7 @@ type PhotoCloudAnimationStatus = 'idle' | 'running' | 'complete';
 type PhotoDisplayStatus = 'loading' | 'ready' | 'error';
 
 const pendingDrawRoundStorageKey = 'wedding.pending-draw-round-id';
+const displayPhotoRefreshIntervalMilliseconds = 60_000;
 const candidatePhotos = ref<DrawCandidatePhoto[]>([]);
 const displayPhotos = ref<DrawDisplayPhoto[]>([]);
 const photoDisplayStatus = ref<PhotoDisplayStatus>('loading');
@@ -42,6 +43,8 @@ const drawAnimationActive = ref(false);
 const photoCloudAnimationStatus = ref<PhotoCloudAnimationStatus>('idle');
 const activeWinnerIndex = ref<number | null>(null);
 const failedDrawImageIds = ref(new Set<number>());
+let displayPhotoRefreshIntervalId: number | null = null;
+let isDisplayPhotoRequestPending = false;
 const preloadProgress = ref<DrawImagePreloadProgress>({
     completed: 0,
     failed: 0,
@@ -93,6 +96,13 @@ onMounted(() => {
     void loadDisplayPhotos();
     void refreshDrawHistory(true);
     void prepareRound();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    startDisplayPhotoRefresh();
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    stopDisplayPhotoRefresh();
 });
 
 watch(candidatePhotos, async (photos) => {
@@ -120,17 +130,59 @@ function markDrawImageAsFailed(photoId: number): void {
     failedDrawImageIds.value.add(photoId);
 }
 
-async function loadDisplayPhotos(): Promise<void> {
-    photoDisplayStatus.value = 'loading';
-    photoDisplayError.value = '';
+async function loadDisplayPhotos(silent = false): Promise<void> {
+    if (isDisplayPhotoRequestPending) {
+        return;
+    }
+
+    isDisplayPhotoRequestPending = true;
+
+    if (!silent) {
+        photoDisplayStatus.value = 'loading';
+        photoDisplayError.value = '';
+    }
 
     try {
         displayPhotos.value = await fetchDrawPhotos();
         photoDisplayStatus.value = 'ready';
     } catch {
-        photoDisplayError.value = '照片云加载失败，请刷新页面重试。';
-        photoDisplayStatus.value = 'error';
+        if (!silent) {
+            photoDisplayError.value = '照片云加载失败，请刷新页面重试。';
+            photoDisplayStatus.value = 'error';
+        }
+    } finally {
+        isDisplayPhotoRequestPending = false;
     }
+}
+
+function startDisplayPhotoRefresh(): void {
+    stopDisplayPhotoRefresh();
+
+    if (document.hidden) {
+        return;
+    }
+
+    displayPhotoRefreshIntervalId = window.setInterval(() => {
+        void loadDisplayPhotos(true);
+    }, displayPhotoRefreshIntervalMilliseconds);
+}
+
+function stopDisplayPhotoRefresh(): void {
+    if (displayPhotoRefreshIntervalId !== null) {
+        window.clearInterval(displayPhotoRefreshIntervalId);
+        displayPhotoRefreshIntervalId = null;
+    }
+}
+
+function handleVisibilityChange(): void {
+    if (document.hidden) {
+        stopDisplayPhotoRefresh();
+
+        return;
+    }
+
+    void loadDisplayPhotos(true);
+    startDisplayPhotoRefresh();
 }
 
 async function refreshDrawHistory(restorePendingResult = false): Promise<void> {
