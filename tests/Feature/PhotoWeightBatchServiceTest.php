@@ -95,4 +95,22 @@ class PhotoWeightBatchServiceTest extends TestCase
 
         $this->assertTrue(app(PhotoWeightBatchService::class)->calculate()->isEmpty());
     }
+
+    public function test_skips_photos_marked_as_excluded_from_lottery(): void
+    {
+        $eligiblePhoto = Photo::factory()->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Normal,
+        ]);
+        $excludedPhoto = Photo::factory()->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Good,
+            'exclude_from_lottery' => true,
+        ]);
+
+        $results = app(PhotoWeightBatchService::class)->calculate();
+
+        $this->assertSame([$eligiblePhoto->id], $results->keys()->all());
+        $this->assertFalse($results->has($excludedPhoto->id));
+    }
 }

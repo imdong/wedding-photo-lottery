@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'upload_status',
     'review_status',
     'reviewed_at',
+    'exclude_from_lottery',
 ])]
 class Photo extends Model
 {
@@ -34,6 +35,7 @@ class Photo extends Model
     protected $attributes = [
         'upload_status' => PhotoUploadStatus::Preparing->value,
         'review_status' => PhotoReviewStatus::Pending->value,
+        'exclude_from_lottery' => false,
     ];
 
     public function user(): BelongsTo
@@ -60,6 +62,7 @@ class Photo extends Model
             'upload_status' => PhotoUploadStatus::class,
             'review_status' => PhotoReviewStatus::class,
             'reviewed_at' => 'datetime',
+            'exclude_from_lottery' => 'boolean',
         ];
     }
 }

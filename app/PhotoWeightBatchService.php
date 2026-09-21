@@ -18,6 +18,7 @@ final readonly class PhotoWeightBatchService
     {
         $photos = Photo::query()
             ->where('upload_status', PhotoUploadStatus::Uploaded)
+            ->where('exclude_from_lottery', false)
             ->whereIn('review_status', [
                 PhotoReviewStatus::Normal->value,
                 PhotoReviewStatus::Good->value,

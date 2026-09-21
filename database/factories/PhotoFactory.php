@@ -34,6 +34,7 @@ class PhotoFactory extends Factory
             'upload_status' => PhotoUploadStatus::Preparing,
             'review_status' => PhotoReviewStatus::Pending,
             'reviewed_at' => null,
+            'exclude_from_lottery' => false,
         ];
     }
 }

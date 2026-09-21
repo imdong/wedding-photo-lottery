@@ -91,4 +91,42 @@ class LotteryCandidatePoolServiceTest extends TestCase
         $this->assertTrue($pool->photos()->isEmpty());
         $this->assertSame(0.0, $pool->totalWeight);
     }
+
+    public function test_only_uses_highest_bonus_photos_when_user_exceeds_candidate_limit(): void
+    {
+        config(['lottery.max_photos_per_user' => 15]);
+
+        $owner = User::factory()->create();
+        $voter = User::factory()->create();
+
+        Photo::factory()->for($voter)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Good,
+        ]);
+
+        $photoWithoutLikes = Photo::factory()->for($owner)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Good,
+        ]);
+
+        $likedPhotos = Photo::factory()->count(15)->for($owner)->create([
+            'upload_status' => PhotoUploadStatus::Uploaded,
+            'review_status' => PhotoReviewStatus::Good,
+        ]);
+
+        $likedPhotos->each(function (Photo $photo) use ($voter): void {
+            PhotoLike::factory()->for($photo)->for($voter)->create();
+        });
+
+        $pool = app(LotteryCandidatePoolService::class)->build();
+        $ownerCandidate = $pool->users->get($owner->id);
+
+        $this->assertNotNull($ownerCandidate);
+        $this->assertCount(15, $ownerCandidate->photos);
+        $this->assertFalse($ownerCandidate->photos->has($photoWithoutLikes->id));
+        $this->assertEqualsCanonicalizing(
+            $likedPhotos->pluck('id')->all(),
+            $ownerCandidate->photos->keys()->all(),
+        );
+    }
 }

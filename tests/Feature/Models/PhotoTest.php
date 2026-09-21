@@ -31,6 +31,7 @@ class PhotoTest extends TestCase
         $this->assertSame(PhotoUploadStatus::Preparing, $photo->upload_status);
         $this->assertSame(PhotoReviewStatus::Pending, $photo->review_status);
         $this->assertNull($photo->reviewed_at);
+        $this->assertFalse($photo->exclude_from_lottery);
         $this->assertTrue($photo->user->is($user));
         $this->assertTrue($user->photos()->whereKey($photo)->exists());
     }
