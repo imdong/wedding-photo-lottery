@@ -37,6 +37,25 @@ export interface PreparedDrawRound {
     status: 'prepared';
 }
 
+export interface DrawWinner {
+    phone_suffix: string;
+    position: number;
+    photo: {
+        draw_url: string;
+        id: number;
+        weight: number;
+    };
+    user_id: number;
+}
+
+export interface DrawResult {
+    completed_at: string;
+    round_id: number;
+    round_number: number;
+    status: 'completed';
+    winners: DrawWinner[];
+}
+
 export interface DrawImagePreloadProgress {
     completed: number;
     failed: number;
@@ -54,6 +73,12 @@ const retainedDrawImages = new Map<string, Promise<HTMLImageElement>>();
 
 export async function prepareDrawRound(): Promise<PreparedDrawRound> {
     const response = await api.post<PreparedDrawRound>('/draw-rounds');
+
+    return response.data;
+}
+
+export async function executeDrawRound(roundId: number): Promise<DrawResult> {
+    const response = await api.post<DrawResult>(`/draw-rounds/${roundId}/draw`);
 
     return response.data;
 }

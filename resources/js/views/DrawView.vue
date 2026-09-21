@@ -3,10 +3,12 @@ import { isAxiosError } from 'axios';
 import { computed, ref, watch } from 'vue';
 import BaseButton from '../components/BaseButton.vue';
 import {
+    executeDrawRound,
     flattenCandidatePhotos,
     preloadCandidateDrawImages,
     prepareDrawRound,
     type DrawCandidatePhoto,
+    type DrawResult,
     type DrawImagePreloadProgress,
     type PreparedDrawRound,
 } from '../services/drawRounds';
@@ -16,6 +18,7 @@ interface ApiErrorResponse {
 }
 
 type PreparationStatus = 'idle' | 'preparing' | 'prepared' | 'error';
+type DrawRequestStatus = 'idle' | 'requesting' | 'ready' | 'error';
 
 const photoTiles = [
     { frame: 'left-[3%] top-[12%] h-[34%] w-[24%] -rotate-6', tone: 'from-rose-100 via-[#f7d8d5] to-gold-100' },
@@ -32,6 +35,9 @@ const candidatePhotos = ref<DrawCandidatePhoto[]>([]);
 const preparedRound = ref<PreparedDrawRound | null>(null);
 const preparationStatus = ref<PreparationStatus>('idle');
 const preparationError = ref('');
+const drawResult = ref<DrawResult | null>(null);
+const drawRequestStatus = ref<DrawRequestStatus>('idle');
+const drawError = ref('');
 const failedThumbnailIds = ref(new Set<number>());
 const failedDrawImageIds = ref(new Set<number>());
 const preloadProgress = ref<DrawImagePreloadProgress>({
@@ -59,7 +65,26 @@ const preloadStatus = computed(() => {
 
     return `${preloadProgress.value.loaded} 张大图已就绪`;
 });
+const canStartDraw = computed(() => (
+    preparedRound.value !== null
+    && drawResult.value === null
+    && drawRequestStatus.value !== 'requesting'
+    && preloadProgress.value.total > 0
+    && preloadProgress.value.completed === preloadProgress.value.total
+));
 const stageStatus = computed(() => {
+    if (drawRequestStatus.value === 'requesting') {
+        return '正在确定结果';
+    }
+
+    if (drawRequestStatus.value === 'ready') {
+        return '结果已确定';
+    }
+
+    if (drawRequestStatus.value === 'error') {
+        return '抽奖失败';
+    }
+
     if (preparationStatus.value === 'preparing') {
         return '正在准备';
     }
@@ -111,6 +136,25 @@ async function prepareRound(): Promise<void> {
             ? error.response?.data.message ?? '准备失败，请稍后重试。'
             : '准备失败，请稍后重试。';
         preparationStatus.value = 'error';
+    }
+}
+
+async function startDraw(): Promise<void> {
+    if (! canStartDraw.value || preparedRound.value === null) {
+        return;
+    }
+
+    drawRequestStatus.value = 'requesting';
+    drawError.value = '';
+
+    try {
+        drawResult.value = await executeDrawRound(preparedRound.value.id);
+        drawRequestStatus.value = 'ready';
+    } catch (error: unknown) {
+        drawError.value = isAxiosError<ApiErrorResponse>(error)
+            ? error.response?.data.message ?? '抽奖失败，请稍后重试。'
+            : '抽奖失败，请稍后重试。';
+        drawRequestStatus.value = 'error';
     }
 }
 </script>
@@ -210,6 +254,7 @@ async function prepareRound(): Promise<void> {
                             <span>{{ preloadStatus }}</span>
                             <span v-if="failedDrawImageIds.size > 0" class="text-rose-300">失败照片将使用占位图</span>
                             <span v-if="preparationError !== ''" class="text-rose-300">{{ preparationError }}</span>
+                            <span v-if="drawError !== ''" class="text-rose-300">{{ drawError }}</span>
                         </div>
                         <div class="flex shrink-0 items-center gap-3">
                             <BaseButton
@@ -220,7 +265,13 @@ async function prepareRound(): Promise<void> {
                             >
                                 {{ preparationStatus === 'preparing' ? '准备中…' : preparedRound === null ? '准备抽奖' : `第 ${preparedRound.round_number} 轮已准备` }}
                             </BaseButton>
-                            <BaseButton class="min-w-40 2xl:min-w-48" disabled>开始抽奖</BaseButton>
+                            <BaseButton
+                                class="min-w-40 2xl:min-w-48"
+                                :disabled="!canStartDraw"
+                                @click="startDraw"
+                            >
+                                {{ drawRequestStatus === 'requesting' ? '正在确定…' : drawResult === null ? '开始抽奖' : '结果已确定' }}
+                            </BaseButton>
                         </div>
                     </div>
                 </section>
@@ -232,13 +283,15 @@ async function prepareRound(): Promise<void> {
                                 <p class="text-[0.68rem] font-semibold tracking-[0.26em] text-rose-600 uppercase">Lucky List</p>
                                 <h2 class="mt-2 font-display text-2xl font-semibold 2xl:text-3xl">本轮幸运时刻</h2>
                             </div>
-                            <span class="rounded-pill bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700">尚未开始</span>
+                            <span class="rounded-pill bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700">
+                                {{ drawResult === null ? '尚未开始' : '结果待揭晓' }}
+                            </span>
                         </div>
                     </div>
 
                     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-5 2xl:gap-4 2xl:p-7">
                         <div
-                            v-for="position in 3"
+                            v-for="position in preparedRound?.draw_count ?? 3"
                             :key="position"
                             class="flex min-h-0 flex-1 items-center gap-4 rounded-2xl border border-dashed border-rose-300/55 bg-white/70 p-3.5 2xl:p-4"
                         >
