@@ -411,39 +411,46 @@ unique(draw_round_id, position)
 
 创建一轮抽奖并冻结候选快照。抽取人数从服务端配置读取。
 
-快照至少包含抽奖时冻结的照片权重：
+快照按用户分组，包含抽奖时冻结的用户与照片权重。内部快照保存 `object_key`，接口返回时再生成有效的 `draw_url`：
 
 ```json
 {
-  "photos": [
+  "total_weight": 2.037171,
+  "users": [
     {
-      "photo_id": 10,
       "user_id": 1,
       "phone_suffix": "1234",
-      "draw_url": "https://...",
       "weight": 2.037171,
-      "lottery_status": "featured",
-      "effective_likes": 2.5,
-      "like_bonus": 0.237171
+      "photos": [
+        {
+          "photo_id": 10,
+          "draw_url": "https://...",
+          "weight": 2.037171,
+          "lottery_status": "featured",
+          "effective_likes": 2.5,
+          "like_bonus": 0.237171
+        }
+      ]
     }
   ]
 }
 ```
 
-前端直接使用快照中的权重，不重新计算审核或点赞规则。每次选出照片后，从候选池移除相同 `user_id` 的全部照片，保证一个手机号最多中奖一次。
+后端先按用户权重抽取用户，再按该用户的照片权重抽取最终展示照片。每次中奖后从候选池移除整个用户，保证一个手机号最多中奖一次；前端只负责使用返回结果播放照片云动画。
 
 ### `GET /api/draw-rounds/{round}`
 
 返回已冻结的候选快照和轮次状态，供抽奖页刷新恢复。
 
-### `POST /api/draw-rounds/{round}/winners`
+### `POST /api/draw-rounds/{round}/draw`
 
-提交前端从快照中抽出的结果。后端必须验证：
+后端从已冻结快照执行两阶段加权抽奖并保存结果。后端必须保证：
 
 - 用户属于该轮快照。
 - 照片属于该用户且属于快照。
 - 同一轮用户不重复。
 - 中奖位置不重复。
+- 重复请求不会重复执行抽奖。
 
 ### `GET /api/draw-winners`
 
