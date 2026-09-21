@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import PhoneRegistrationModal from '../components/PhoneRegistrationModal.vue';
+import { GALLERY_REFRESH_REQUESTED_EVENT } from '../galleryEvents';
 import { useUserIdentityStore } from '../stores/userIdentity';
 
 const userIdentity = useUserIdentityStore();
+const route = useRoute();
 
 onMounted(() => {
     void userIdentity.restoreIdentity();
 });
+
+function refreshGalleryIfActive(): void {
+    if (route.name === 'gallery') {
+        window.dispatchEvent(new Event(GALLERY_REFRESH_REQUESTED_EVENT));
+    }
+}
 </script>
 
 <template>
@@ -55,6 +63,7 @@ onMounted(() => {
                         to="/gallery"
                         class="rounded-control px-4 py-3 text-center text-sm font-semibold text-ink-500 transition hover:bg-rose-50"
                         exact-active-class="bg-rose-600 text-white shadow-[0_8px_18px_rgb(168_85_99_/_0.2)]"
+                        @click="refreshGalleryIfActive"
                     >
                         照片墙
                     </RouterLink>

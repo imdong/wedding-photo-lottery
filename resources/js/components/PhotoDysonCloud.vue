@@ -30,6 +30,7 @@ interface CloudParticle {
 }
 
 interface FocusedPhoto {
+    aspectRatio: number;
     expanded: boolean;
     imageUrl: string;
     particleKey: string;
@@ -67,6 +68,7 @@ const emit = defineEmits<{
 }>();
 
 const ambientRotationSpeed = -1.25;
+const focusedPhotoViewportCoverage = 0.88;
 
 // 球体进入抽奖后的最高转速，绝对值越大旋转越快。
 const rapidRotationSpeed = -240;
@@ -516,12 +518,28 @@ function focusStyle(): CSSProperties {
     }
 
     if (focus.expanded) {
+        const stageElement = stage.value;
+
+        if (stageElement === null) {
+            return {};
+        }
+
+        const maximumWidth = stageElement.clientWidth * focusedPhotoViewportCoverage;
+        const maximumHeight = stageElement.clientHeight * focusedPhotoViewportCoverage;
+        const widthConstrainedHeight = maximumWidth / focus.aspectRatio;
+        const width = widthConstrainedHeight <= maximumHeight
+            ? maximumWidth
+            : maximumHeight * focus.aspectRatio;
+        const height = widthConstrainedHeight <= maximumHeight
+            ? widthConstrainedHeight
+            : maximumHeight;
+
         return {
-            height: 'min(76%, 33rem)',
+            height: `${height}px`,
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: 'min(42%, 24rem)',
+            width: `${width}px`,
         };
     }
 
@@ -612,9 +630,14 @@ async function focusParticle(
     keepExpanded: boolean,
 ): Promise<void> {
     const sequence = ++focusSequence;
+    let aspectRatio = 1;
 
     try {
-        await preloadDrawImage(imageUrl);
+        const image = await preloadDrawImage(imageUrl);
+
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+            aspectRatio = image.naturalWidth / image.naturalHeight;
+        }
     } catch {
         emit('drawImageError', particle.photo.photo_id);
     }
@@ -644,6 +667,7 @@ async function focusParticle(
     }
 
     focusedPhoto.value = {
+        aspectRatio,
         expanded: false,
         imageUrl,
         particleKey: particle.key,
