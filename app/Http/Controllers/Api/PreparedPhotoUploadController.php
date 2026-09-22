@@ -21,7 +21,7 @@ class PreparedPhotoUploadController extends Controller
     ): JsonResponse {
         /** @var User $user */
         $user = $request->user();
-        /** @var list<array{original_file_hash: string, upload_file_hash: string, filename: string, mime_type: string, file_size: int}> $photos */
+        /** @var list<array{original_file_hash: string, upload_file_hash: string, filename: string, original_mime_type: string, original_file_size: int, upload_mime_type: string, upload_file_size: int}> $photos */
         $photos = $request->validated('photos');
         $credentials = $credentialService->issueForUser($user);
 

@@ -16,8 +16,10 @@ final readonly class PhotoUploadPreparationService
      *     original_file_hash: string,
      *     upload_file_hash: string,
      *     filename: string,
-     *     mime_type: string,
-     *     file_size: int
+     *     original_mime_type: string,
+     *     original_file_size: int,
+     *     upload_mime_type: string,
+     *     upload_file_size: int
      * }>  $photos
      * @return list<array<string, int|string|list<string>>>
      */
@@ -43,16 +45,16 @@ final readonly class PhotoUploadPreparationService
                     continue;
                 }
 
-                $objectKey = $this->makeObjectKey($user, $photoData['mime_type'], $photoData['file_size']);
+                [$objectKey, $originalObjectKey] = $this->makeObjectKeys($user, $photoData);
 
                 $photo = $user->photos()->create([
                     'object_key' => $objectKey,
-                    'original_object_key' => $objectKey,
+                    'original_object_key' => $originalObjectKey,
                     'original_filename' => $photoData['filename'],
                     'original_file_hash' => $photoData['original_file_hash'],
                     'upload_file_hash' => $photoData['upload_file_hash'],
-                    'mime_type' => $photoData['mime_type'],
-                    'file_size' => $photoData['file_size'],
+                    'mime_type' => $photoData['original_mime_type'],
+                    'file_size' => $photoData['original_file_size'],
                 ]);
 
                 $results[] = [
@@ -60,6 +62,7 @@ final readonly class PhotoUploadPreparationService
                     'status' => 'ready',
                     'photo_id' => $photo->id,
                     'object_key' => $photo->object_key,
+                    'original_object_key' => $photo->original_object_key,
                     'original_file_hash' => $photo->original_file_hash,
                     'upload_file_hash' => $photo->upload_file_hash,
                 ];
@@ -89,27 +92,40 @@ final readonly class PhotoUploadPreparationService
         return array_values(array_intersect($hashes, $knownHashes));
     }
 
-    private function makeObjectKey(User $user, string $mimeType, int $fileSize): string
+    /**
+     * @param  array{original_mime_type: string, original_file_size: int, upload_mime_type: string}  $photoData
+     * @return array{string, string}
+     */
+    private function makeObjectKeys(User $user, array $photoData): array
     {
-        $extension = match ($mimeType) {
+        $baseName = sprintf(
+            '%s/%s/%s',
+            $this->configuration->uploadPrefix,
+            $user->getKey(),
+            Str::orderedUuid(),
+        );
+        $originalExtension = $this->extensionForMimeType($photoData['original_mime_type']);
+        $isLargeOriginal = $photoData['original_file_size'] > (int) config('photos.large_original_size_bytes');
+
+        if (! $isLargeOriginal) {
+            $objectKey = "{$baseName}.{$originalExtension}";
+
+            return [$objectKey, $objectKey];
+        }
+
+        return [
+            $baseName.'.'.$this->extensionForMimeType($photoData['upload_mime_type']),
+            "{$baseName}.orig.{$originalExtension}",
+        ];
+    }
+
+    private function extensionForMimeType(string $mimeType): string
+    {
+        return match ($mimeType) {
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/webp' => 'webp',
             'image/heic' => 'heic',
         };
-
-        $baseName = (string) Str::orderedUuid();
-
-        if ($fileSize > (int) config('photos.large_original_size_bytes', 20 * 1024 * 1024)) {
-            $baseName .= '.orig';
-        }
-
-        return sprintf(
-            '%s/%s/%s.%s',
-            $this->configuration->uploadPrefix,
-            $user->getKey(),
-            $baseName,
-            $extension,
-        );
     }
 }

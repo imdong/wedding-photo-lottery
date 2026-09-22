@@ -1,11 +1,13 @@
 import api from './api';
 
 export interface PhotoPreparationInput {
-    file_size: number;
     filename: string;
-    mime_type: string;
+    original_file_size: number;
     original_file_hash: string;
+    original_mime_type: string;
+    upload_file_size: number;
     upload_file_hash: string;
+    upload_mime_type: string;
 }
 
 export interface OssTemporaryCredentials {
@@ -20,6 +22,7 @@ export interface OssTemporaryCredentials {
 interface ReadyPhotoPreparation {
     index: number;
     object_key: string;
+    original_object_key: string;
     original_file_hash: string;
     photo_id: number;
     status: 'ready';

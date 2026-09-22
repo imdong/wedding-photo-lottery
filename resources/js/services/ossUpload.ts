@@ -16,7 +16,7 @@ export async function uploadPhotoToOss(
         const request = new XMLHttpRequest();
 
         request.open('PUT', objectUrl);
-        request.timeout = 120_000;
+        request.timeout = 300_000;
         request.setRequestHeader('Authorization', authorization);
         request.setRequestHeader('Content-Type', file.type);
         request.setRequestHeader('x-oss-date', date);

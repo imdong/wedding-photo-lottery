@@ -35,11 +35,18 @@ class CompletedPhotoUploadController extends Controller
             return $this->response($photo);
         }
 
-        if (! $ossObjectService->exists($photo->object_key)) {
-            return response()->json([
-                'message' => '照片尚未上传完成，请重试。',
-                'code' => 'object_not_found',
-            ], Response::HTTP_CONFLICT);
+        $requiredObjectKeys = array_values(array_unique([
+            $photo->object_key,
+            $photo->original_object_key ?? $photo->object_key,
+        ]));
+
+        foreach ($requiredObjectKeys as $objectKey) {
+            if (! $ossObjectService->exists($objectKey)) {
+                return response()->json([
+                    'message' => '照片尚未上传完成，请重试。',
+                    'code' => 'object_not_found',
+                ], Response::HTTP_CONFLICT);
+            }
         }
 
         $uploadProcessingService->process($photo);

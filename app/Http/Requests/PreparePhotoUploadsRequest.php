@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class PreparePhotoUploadsRequest extends FormRequest
 {
@@ -25,19 +26,52 @@ class PreparePhotoUploadsRequest extends FormRequest
     {
         return [
             'photos' => ['required', 'array', 'list', 'min:1', 'max:'.config('photos.max_batch_size')],
-            'photos.*' => ['required', 'array:original_file_hash,upload_file_hash,filename,mime_type,file_size'],
+            'photos.*' => ['required', 'array:original_file_hash,upload_file_hash,filename,original_mime_type,original_file_size,upload_mime_type,upload_file_size'],
             'photos.*.original_file_hash' => ['required', 'string', 'regex:/\A[a-f0-9]{64}\z/'],
             'photos.*.upload_file_hash' => ['required', 'string', 'regex:/\A[a-f0-9]{64}\z/'],
             'photos.*.filename' => ['required', 'string', 'max:255'],
-            'photos.*.mime_type' => ['required', 'string', Rule::in(config('photos.allowed_mime_types'))],
-            'photos.*.file_size' => ['required', 'integer', 'min:1', 'max:'.config('photos.max_size_bytes')],
+            'photos.*.original_mime_type' => ['required', 'string', Rule::in(config('photos.allowed_mime_types'))],
+            'photos.*.original_file_size' => ['required', 'integer', 'min:1', 'max:'.config('photos.max_original_size_bytes')],
+            'photos.*.upload_mime_type' => ['required', 'string', Rule::in(config('photos.allowed_mime_types'))],
+            'photos.*.upload_file_size' => ['required', 'integer', 'min:1', 'max:'.config('photos.max_display_size_bytes')],
         ];
+    }
+
+    /** @return list<callable(Validator): void> */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            /** @var list<array<string, int|string>> $photos */
+            $photos = $this->input('photos', []);
+            $largeOriginalSizeBytes = (int) config('photos.large_original_size_bytes');
+
+            foreach ($photos as $index => $photo) {
+                $isLargeOriginal = $photo['original_file_size'] > $largeOriginalSizeBytes;
+
+                if ($isLargeOriginal && $photo['upload_mime_type'] !== 'image/webp') {
+                    $validator->errors()->add("photos.{$index}.upload_mime_type", '大图的展示版本必须使用 WebP 格式。');
+                }
+
+                if (! $isLargeOriginal && (
+                    $photo['original_file_hash'] !== $photo['upload_file_hash']
+                    || $photo['original_mime_type'] !== $photo['upload_mime_type']
+                    || $photo['original_file_size'] !== $photo['upload_file_size']
+                )) {
+                    $validator->errors()->add("photos.{$index}.upload_file_hash", '20 MB 以内的照片必须直接上传原片。');
+                }
+            }
+        }];
     }
 
     /** @return array<string, string> */
     public function messages(): array
     {
-        $maxSizeMegabytes = (int) (config('photos.max_size_bytes') / 1024 / 1024);
+        $maxOriginalSizeMegabytes = (int) (config('photos.max_original_size_bytes') / 1024 / 1024);
+        $maxDisplaySizeMegabytes = (int) (config('photos.max_display_size_bytes') / 1024 / 1024);
 
         return [
             'photos.required' => '请选择需要上传的照片。',
@@ -52,10 +86,14 @@ class PreparePhotoUploadsRequest extends FormRequest
             'photos.*.upload_file_hash.regex' => '实际上传文件哈希格式不正确。',
             'photos.*.filename.required' => '缺少照片文件名。',
             'photos.*.filename.max' => '照片文件名不能超过 255 个字符。',
-            'photos.*.mime_type.in' => '不支持这种照片格式。',
-            'photos.*.file_size.integer' => '照片大小格式不正确。',
-            'photos.*.file_size.min' => '照片内容不能为空。',
-            'photos.*.file_size.max' => "单张照片不能超过 {$maxSizeMegabytes} MB。",
+            'photos.*.original_mime_type.in' => '不支持这种原片格式。',
+            'photos.*.original_file_size.integer' => '原片大小格式不正确。',
+            'photos.*.original_file_size.min' => '原片内容不能为空。',
+            'photos.*.original_file_size.max' => "单张原片不能超过 {$maxOriginalSizeMegabytes} MB。",
+            'photos.*.upload_mime_type.in' => '不支持这种展示图片格式。',
+            'photos.*.upload_file_size.integer' => '展示图片大小格式不正确。',
+            'photos.*.upload_file_size.min' => '展示图片内容不能为空。',
+            'photos.*.upload_file_size.max' => "展示图片不能超过 {$maxDisplaySizeMegabytes} MB。",
         ];
     }
 }

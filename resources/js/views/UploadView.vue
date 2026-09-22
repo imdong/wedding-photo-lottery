@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader.vue';
 import MobilePageShell from '../layouts/MobilePageShell.vue';
 import { calculateFileSha256 } from '../services/fileHash';
 import { uploadPhotoToOss } from '../services/ossUpload';
+import { compressPhotoForUpload, PhotoCompressionError, requiresClientCompression } from '../services/photoCompression';
 import {
     completePhotoUpload,
     fetchCurrentUserPhotoStats,
@@ -18,7 +19,7 @@ import {
 } from '../services/photoUploads';
 import { useUserIdentityStore } from '../stores/userIdentity';
 
-type PhotoStatus = 'queued' | 'hashing' | 'checking' | 'ready' | 'uploading' | 'confirming' | 'uploaded' | 'duplicate' | 'error';
+type PhotoStatus = 'queued' | 'hashing' | 'compressing' | 'checking' | 'ready' | 'uploading' | 'confirming' | 'uploaded' | 'duplicate' | 'error';
 
 interface SelectedPhoto {
     credentials: OssTemporaryCredentials | null;
@@ -26,6 +27,7 @@ interface SelectedPhoto {
     file: File;
     id: string;
     objectKey: string | null;
+    originalObjectKey: string | null;
     originalHash: string;
     photoId: number | null;
     progress: number;
@@ -51,7 +53,7 @@ const isPhotoStatsVisible = false;
 let selectionVersion = 0;
 
 const isProcessing = computed(() =>
-    selectedPhotos.value.some((photo) => ['queued', 'hashing', 'checking', 'ready', 'uploading', 'confirming'].includes(photo.status)),
+    selectedPhotos.value.some((photo) => ['queued', 'hashing', 'compressing', 'checking', 'ready', 'uploading', 'confirming'].includes(photo.status)),
 );
 
 watch(
@@ -79,6 +81,7 @@ async function handlePhotoSelection(event: Event): Promise<void> {
         file,
         id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
         objectKey: null,
+        originalObjectKey: null,
         originalHash: '',
         photoId: null,
         progress: 0,
@@ -93,9 +96,16 @@ async function handlePhotoSelection(event: Event): Promise<void> {
 
         try {
             const originalHash = await calculateFileSha256(photo.file);
-            const uploadHash = photo.uploadFile === photo.file
+            let uploadFile: Blob = photo.file;
+
+            if (requiresClientCompression(photo.file)) {
+                selectedPhotos.value[index] = { ...photo, originalHash, status: 'compressing' };
+                uploadFile = await compressPhotoForUpload(photo.file);
+            }
+
+            const uploadHash = uploadFile === photo.file
                 ? originalHash
-                : await calculateFileSha256(photo.uploadFile);
+                : await calculateFileSha256(uploadFile);
 
             if (currentVersion !== selectionVersion) {
                 return;
@@ -105,16 +115,19 @@ async function handlePhotoSelection(event: Event): Promise<void> {
                 ...photo,
                 originalHash,
                 status: 'checking',
+                uploadFile,
                 uploadHash,
             };
-        } catch {
+        } catch (error: unknown) {
             if (currentVersion !== selectionVersion) {
                 return;
             }
 
             selectedPhotos.value[index] = {
                 ...photo,
-                errorMessage: '照片读取失败，请重新选择。',
+                errorMessage: error instanceof PhotoCompressionError
+                    ? error.message
+                    : '照片读取失败，请重新选择。',
                 status: 'error',
             };
         }
@@ -145,11 +158,13 @@ async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
 
         try {
             const preparation = await preparePhotoUploads([{
-                file_size: photo.uploadFile.size,
                 filename: photo.file.name,
-                mime_type: photo.uploadFile.type,
+                original_file_size: photo.file.size,
                 original_file_hash: photo.originalHash,
+                original_mime_type: photo.file.type,
+                upload_file_size: photo.uploadFile.size,
                 upload_file_hash: photo.uploadHash,
+                upload_mime_type: photo.uploadFile.type,
             }]);
             const result = preparation.photos[0];
 
@@ -170,6 +185,7 @@ async function prepareSelectedPhotos(currentVersion: number): Promise<void> {
                 ...photo,
                 credentials: preparation.credentials,
                 objectKey: result.object_key,
+                originalObjectKey: result.original_object_key,
                 photoId: result.photo_id,
                 status: 'ready',
             };
@@ -203,6 +219,7 @@ async function uploadSelectedPhoto(selectedIndex: number, currentVersion: number
         || !['ready', 'error'].includes(photo.status)
         || photo.credentials === null
         || photo.objectKey === null
+        || photo.originalObjectKey === null
         || photo.photoId === null
     ) {
         return;
@@ -211,7 +228,7 @@ async function uploadSelectedPhoto(selectedIndex: number, currentVersion: number
     selectedPhotos.value[selectedIndex] = { ...photo, errorMessage: '', progress: 0, status: 'uploading' };
 
     try {
-        await uploadPhotoToOss(photo.uploadFile, photo.objectKey, photo.credentials, (progress) => {
+        await uploadPhotoObjects(photo, (progress) => {
             const currentPhoto = selectedPhotos.value[selectedIndex];
 
             if (currentVersion === selectionVersion && currentPhoto?.status === 'uploading') {
@@ -248,6 +265,29 @@ async function uploadSelectedPhoto(selectedIndex: number, currentVersion: number
             errorMessage: '上传失败，请稍后重试。',
             status: 'error',
         };
+    }
+}
+
+async function uploadPhotoObjects(photo: SelectedPhoto, onProgress: (progress: number) => void): Promise<void> {
+    if (photo.credentials === null || photo.objectKey === null || photo.originalObjectKey === null) {
+        return;
+    }
+
+    const objects = photo.objectKey === photo.originalObjectKey
+        ? [{ file: photo.file, objectKey: photo.objectKey }]
+        : [
+            { file: photo.file, objectKey: photo.originalObjectKey },
+            { file: photo.uploadFile, objectKey: photo.objectKey },
+        ];
+    const totalBytes = objects.reduce((total, object) => total + object.file.size, 0);
+    let uploadedBytes = 0;
+
+    for (const object of objects) {
+        await uploadPhotoToOss(object.file, object.objectKey, photo.credentials, (objectProgress) => {
+            const currentObjectBytes = object.file.size * objectProgress / 100;
+            onProgress(Math.min(100, Math.round((uploadedBytes + currentObjectBytes) / totalBytes * 100)));
+        });
+        uploadedBytes += object.file.size;
     }
 }
 
@@ -316,6 +356,7 @@ function statusLabel(photo: SelectedPhoto): string {
     const labels: Record<Exclude<PhotoStatus, 'uploading'>, string> = {
         queued: '等待上传',
         hashing: '处理中',
+        compressing: '正在压缩',
         checking: '等待上传',
         ready: '等待上传',
         confirming: '处理中',
@@ -388,13 +429,13 @@ function reviewStatusClasses(status: CurrentUserPhoto['review_status']): string 
         <section class="rounded-card border border-dashed border-rose-300/80 bg-rose-50/55 px-6 py-10 text-center shadow-card">
             <div class="flex flex-col gap-2">
                 <h2 class="font-display text-2xl font-semibold text-ink-950">上传现场照片</h2>
-                <p class="text-sm leading-6 text-ink-500">支持上传原图，展示时会自动使用清晰的缩略图。</p>
+                <p class="text-sm leading-6 text-ink-500">超过 20 MB 的照片会同时保存高清原片和高质量展示图。</p>
             </div>
             <input
                 ref="photoInput"
                 class="sr-only"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic"
+                accept="image/heic,image/jpeg,image/png,image/webp"
                 multiple
                 @change="handlePhotoSelection"
             />
@@ -474,7 +515,10 @@ function reviewStatusClasses(status: CurrentUserPhoto['review_status']): string 
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
                         <p class="truncate text-sm font-semibold text-ink-950">{{ photo.file.name }}</p>
-                        <p class="mt-1 text-xs text-ink-500">{{ formatFileSize(photo.file.size) }}</p>
+                        <p class="mt-1 text-xs text-ink-500">
+                            {{ formatFileSize(photo.file.size) }}
+                            <template v-if="photo.uploadFile !== photo.file"> · 上传 {{ formatFileSize(photo.uploadFile.size) }} WebP</template>
+                        </p>
                     </div>
                     <span
                         :class="[

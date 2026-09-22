@@ -88,6 +88,7 @@ class CompletedPhotoUploadControllerTest extends TestCase
         [$user, $plainTextToken] = $this->authenticatedUser();
         $photo = Photo::factory()->for($user)->create([
             'object_key' => 'wedding/photos/42/my photo.jpg',
+            'original_object_key' => 'wedding/photos/42/my photo.jpg',
         ]);
 
         $this->withToken($plainTextToken)
@@ -108,6 +109,57 @@ class CompletedPhotoUploadControllerTest extends TestCase
                 && $request->hasHeader('Date', 'Sun, 20 Sep 2026 08:00:00 GMT')
                 && str_starts_with($request->header('Authorization')[0], 'OSS test-access-key-id:');
         });
+    }
+
+    public function test_confirms_both_original_and_display_objects_for_a_large_photo(): void
+    {
+        Http::fake([
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/*' => Http::response('', 200),
+        ]);
+        [$user, $plainTextToken] = $this->authenticatedUser();
+        $photo = Photo::factory()->for($user)->create([
+            'object_key' => 'wedding/photos/42/photo.webp',
+            'original_object_key' => 'wedding/photos/42/photo.orig.heic',
+            'mime_type' => 'image/heic',
+            'file_size' => 40 * 1024 * 1024,
+        ]);
+
+        $this->withToken($plainTextToken)
+            ->postJson("/api/uploads/{$photo->id}/complete")
+            ->assertOk()
+            ->assertJsonPath('upload_status', 'uploaded');
+
+        $this->assertSame(PhotoUploadStatus::Uploaded, $photo->refresh()->upload_status);
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'HEAD'
+            && $request->url() === 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/photo.webp');
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'HEAD'
+            && $request->url() === 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/photo.orig.heic');
+    }
+
+    public function test_returns_409_when_the_large_photo_original_is_missing(): void
+    {
+        Http::fake([
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/photo.webp' => Http::response('', 200),
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/photo.orig.jpg' => Http::response('', 404),
+        ]);
+        [$user, $plainTextToken] = $this->authenticatedUser();
+        $photo = Photo::factory()->for($user)->create([
+            'object_key' => 'wedding/photos/42/photo.webp',
+            'original_object_key' => 'wedding/photos/42/photo.orig.jpg',
+            'file_size' => 40 * 1024 * 1024,
+        ]);
+
+        $this->withToken($plainTextToken)
+            ->postJson("/api/uploads/{$photo->id}/complete")
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => '照片尚未上传完成，请重试。',
+                'code' => 'object_not_found',
+            ]);
+
+        $this->assertSame(PhotoUploadStatus::Preparing, $photo->refresh()->upload_status);
+        Http::assertSentCount(2);
     }
 
     public function test_processes_large_photos_into_a_displayable_object_before_marking_uploaded(): void
