@@ -19,6 +19,7 @@ class OssConfigurationTest extends TestCase
         $this->assertSame('example-wedding-photos', $configuration->bucket);
         $this->assertSame('cn-qingdao', $configuration->region);
         $this->assertSame('https://oss-cn-qingdao.aliyuncs.com', $configuration->endpoint);
+        $this->assertSame('https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com', $configuration->serverUrl);
         $this->assertSame('https://cdn.example.com', $configuration->publicUrl);
         $this->assertSame('acs:ram::123456789:role/wedding-photo-upload', $configuration->roleArn);
         $this->assertSame(900, $configuration->temporaryCredentialTtlSeconds);
@@ -93,6 +94,7 @@ class OssConfigurationTest extends TestCase
             'endpoint' => 'https://oss-cn-qingdao.aliyuncs.com/',
             'internal_endpoint' => 'https://oss-cn-qingdao-internal.aliyuncs.com/',
             'bucket_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/',
+            'server_url' => 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/',
             'public_url' => 'https://cdn.example.com/',
             'role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com/',

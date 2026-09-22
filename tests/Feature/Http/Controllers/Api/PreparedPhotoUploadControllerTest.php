@@ -25,6 +25,7 @@ class PreparedPhotoUploadControllerTest extends TestCase
             'endpoint' => 'https://oss-cn-qingdao.aliyuncs.com',
             'internal_endpoint' => 'https://oss-cn-qingdao-internal.aliyuncs.com',
             'bucket_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
+            'server_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
             'public_url' => 'https://ali-cdn.example.test',
             'role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',

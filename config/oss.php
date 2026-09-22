@@ -9,6 +9,7 @@ return [
     'endpoint' => env('ALIYUN_OSS_ENDPOINT', 'https://oss-cn-qingdao.aliyuncs.com'),
     'internal_endpoint' => env('ALIYUN_OSS_INTERNAL_ENDPOINT', 'https://oss-cn-qingdao-internal.aliyuncs.com'),
     'bucket_url' => env('ALIYUN_OSS_BUCKET_URL', 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com'),
+    'server_url' => env('ALIYUN_OSS_SERVER_URL', 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com'),
     'public_url' => env('ALIYUN_OSS_PUBLIC_URL', 'https://cdn.example.com'),
 
     'role_arn' => env('ALIYUN_OSS_ROLE_ARN'),

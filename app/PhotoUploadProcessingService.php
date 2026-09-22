@@ -75,7 +75,8 @@ final readonly class PhotoUploadProcessingService
         $image->readImageBlob($sourceContents);
         $image->setIteratorIndex(0);
         $image->stripImage();
-        $image->thumbnailImage(self::MAX_DIMENSION, self::MAX_DIMENSION, true, true);
+        $image->thumbnailImage(self::MAX_DIMENSION, self::MAX_DIMENSION, true, false);
+        $image->setImagePage(0, 0, 0, 0);
 
         try {
             if (! $image->setImageFormat('webp')) {
@@ -85,7 +86,7 @@ final readonly class PhotoUploadProcessingService
             $image->setImageCompressionQuality(self::WEBP_QUALITY);
 
             return [
-                'contents' => $image->getImagesBlob(),
+                'contents' => $image->getImageBlob(),
                 'mime_type' => 'image/webp',
                 'extension' => 'webp',
             ];
@@ -94,7 +95,7 @@ final readonly class PhotoUploadProcessingService
             $image->setImageCompressionQuality(self::JPEG_QUALITY);
 
             return [
-                'contents' => $image->getImagesBlob(),
+                'contents' => $image->getImageBlob(),
                 'mime_type' => 'image/jpeg',
                 'extension' => 'jpg',
             ];

@@ -28,6 +28,7 @@ class CompletedPhotoUploadControllerTest extends TestCase
             'endpoint' => 'https://oss-cn-qingdao.aliyuncs.com',
             'internal_endpoint' => 'https://oss-cn-qingdao-internal.aliyuncs.com',
             'bucket_url' => 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
+            'server_url' => 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com',
             'public_url' => 'https://cdn.example.com',
             'role_arn' => 'acs:ram::123456789:role/wedding-photo-upload',
             'sts_endpoint' => 'https://sts.cn-qingdao.aliyuncs.com',
@@ -61,7 +62,7 @@ class CompletedPhotoUploadControllerTest extends TestCase
     public function test_returns_409_when_the_object_does_not_exist(): void
     {
         Http::fake([
-            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*' => Http::response('', 404),
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/*' => Http::response('', 404),
         ]);
         [$user, $plainTextToken] = $this->authenticatedUser();
         $photo = Photo::factory()->for($user)->create();
@@ -82,7 +83,7 @@ class CompletedPhotoUploadControllerTest extends TestCase
     {
         $this->travelTo('2026-09-20 08:00:00');
         Http::fake([
-            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*' => Http::response('', 200),
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/*' => Http::response('', 200),
         ]);
         [$user, $plainTextToken] = $this->authenticatedUser();
         $photo = Photo::factory()->for($user)->create([
@@ -103,7 +104,7 @@ class CompletedPhotoUploadControllerTest extends TestCase
         $this->assertSame(PhotoReviewStatus::Pending, $photo->review_status);
         Http::assertSent(function (Request $request): bool {
             return $request->method() === 'HEAD'
-                && $request->url() === 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/wedding/photos/42/my%20photo.jpg'
+                && $request->url() === 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/my%20photo.jpg'
                 && $request->hasHeader('Date', 'Sun, 20 Sep 2026 08:00:00 GMT')
                 && str_starts_with($request->header('Authorization')[0], 'OSS test-access-key-id:');
         });
@@ -115,16 +116,16 @@ class CompletedPhotoUploadControllerTest extends TestCase
         config(['photos.large_original_size_bytes' => 1]);
 
         Http::fake([
-            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*OSSAccessKeyId=*' => function (Request $request) {
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/*OSSAccessKeyId=*' => function (Request $request) {
                 if ($request->method() === 'GET') {
-                    return Http::response(base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='), 200, [
+                    return Http::response(base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAIAAADwyuo0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAEElEQVQImWP8z4AATEhsBgAZNQED985GgAAAAABJRU5ErkJggg=='), 200, [
                         'Content-Type' => 'image/png',
                     ]);
                 }
 
                 return Http::response('', 200);
             },
-            'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com/*' => Http::response('', 200),
+            'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/*' => Http::response('', 200),
         ]);
         [$user, $plainTextToken] = $this->authenticatedUser();
         $photo = Photo::factory()->for($user)->create([
@@ -149,6 +150,17 @@ class CompletedPhotoUploadControllerTest extends TestCase
         $this->assertSame('wedding/photos/42/my photo.orig.png', $photo->original_object_key);
         $this->assertSame('wedding/photos/42/my photo.webp', $photo->object_key);
         Http::assertSentCount(3);
+        Http::assertSent(function (Request $request): bool {
+            if ($request->method() !== 'PUT') {
+                return false;
+            }
+
+            $imageSize = getimagesizefromstring($request->body());
+
+            return is_array($imageSize)
+                && $imageSize[0] === $imageSize[1] * 2
+                && $request->url() === 'https://example-wedding-photos.oss-cn-qingdao-internal.aliyuncs.com/wedding/photos/42/my%20photo.webp';
+        });
     }
 
     public function test_returns_an_already_uploaded_photo_without_checking_oss_again(): void

@@ -110,7 +110,7 @@ final readonly class OssObjectService
         ));
 
         return sprintf('%s/%s?%s',
-            $this->configuration->bucketUrl,
+            $this->configuration->serverUrl,
             collect(explode('/', $objectKey))
                 ->map(fn (string $segment): string => rawurlencode($segment))
                 ->implode('/'),
@@ -122,16 +122,12 @@ final readonly class OssObjectService
         );
     }
 
-    private function objectUrl(string $objectKey, bool $internal = false): string
+    private function objectUrl(string $objectKey): string
     {
         $encodedObjectKey = collect(explode('/', $objectKey))
             ->map(fn (string $segment): string => rawurlencode($segment))
             ->implode('/');
 
-        if ($internal) {
-            return sprintf('%s/%s/%s', $this->configuration->internalEndpoint, $this->configuration->bucket, $encodedObjectKey);
-        }
-
-        return $this->configuration->bucketUrl.'/'.$encodedObjectKey;
+        return $this->configuration->serverUrl.'/'.$encodedObjectKey;
     }
 }

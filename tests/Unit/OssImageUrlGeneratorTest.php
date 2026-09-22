@@ -73,6 +73,7 @@ class OssImageUrlGeneratorTest extends TestCase
             endpoint: 'https://oss-cn-qingdao.aliyuncs.com',
             internalEndpoint: 'https://oss-cn-qingdao-internal.aliyuncs.com',
             bucketUrl: 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
+            serverUrl: 'https://example-wedding-photos.oss-cn-qingdao.aliyuncs.com',
             publicUrl: 'https://images.example.test',
             roleArn: 'acs:ram::123456789:role/wedding-photo-upload',
             stsEndpoint: 'https://sts.cn-qingdao.aliyuncs.com',
