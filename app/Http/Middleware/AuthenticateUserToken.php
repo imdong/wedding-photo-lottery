@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Models\UserAccessToken;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,8 +24,15 @@ class AuthenticateUserToken
             return $this->unauthenticated();
         }
 
-        $user = User::query()
-            ->where('access_token_hash', hash('sha256', $plainTextToken))
+        $tokenHash = hash('sha256', $plainTextToken);
+        $user = UserAccessToken::query()
+            ->with('user')
+            ->where('token_hash', $tokenHash)
+            ->first()
+            ?->user;
+
+        $user ??= User::query()
+            ->where('access_token_hash', $tokenHash)
             ->first();
 
         if ($user === null) {

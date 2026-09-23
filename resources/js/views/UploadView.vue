@@ -424,12 +424,12 @@ function reviewStatusClasses(status: CurrentUserPhoto['review_status']): string 
 
 <template>
     <MobilePageShell>
-        <PageHeader eyebrow="定格此刻" title="分享你眼中的幸福" description="上传婚礼现场相关照片，将获得现场抽奖机会，优质照片可提高中奖几率。" />
+        <PageHeader eyebrow="定格此刻" title="分享你眼中的幸福" description="上传婚礼现场相关照片，将获得现场抽奖机会。" />
 
         <section class="rounded-card border border-dashed border-rose-300/80 bg-rose-50/55 px-6 py-10 text-center shadow-card">
             <div class="flex flex-col gap-2">
                 <h2 class="font-display text-2xl font-semibold text-ink-950">上传现场照片</h2>
-                <p class="text-sm leading-6 text-ink-500">超过 20 MB 的照片会同时保存高清原片和高质量展示图。</p>
+                <p class="text-sm leading-6 text-ink-500">选择优质照片可提高中奖几率</p>
             </div>
             <input
                 ref="photoInput"

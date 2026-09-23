@@ -34,12 +34,17 @@ class PhoneAuthenticationControllerTest extends TestCase
 
         $this->assertIsString($plainTextToken);
         $this->assertSame(64, strlen($plainTextToken));
-        $this->assertSame(hash('sha256', $plainTextToken), $user->access_token_hash);
-        $this->assertNotSame($plainTextToken, $user->access_token_hash);
-        $this->assertNotSame('client-controlled-value', $user->access_token_hash);
+        $this->assertDatabaseHas('user_access_tokens', [
+            'user_id' => $user->id,
+            'token_hash' => hash('sha256', $plainTextToken),
+        ]);
+        $this->assertDatabaseMissing('user_access_tokens', [
+            'token_hash' => $plainTextToken,
+        ]);
+        $this->assertNull($user->access_token_hash);
     }
 
-    public function test_existing_phone_restores_same_user_and_rotates_token(): void
+    public function test_existing_phone_restores_same_user_without_invalidating_existing_token(): void
     {
         $user = User::factory()->create([
             'phone' => '13900000000',
@@ -66,8 +71,42 @@ class PhoneAuthenticationControllerTest extends TestCase
             ]);
 
         $this->assertDatabaseCount('users', 1);
-        $this->assertSame(hash('sha256', $plainTextToken), $user->access_token_hash);
-        $this->assertNotSame(hash('sha256', 'old-token'), $user->access_token_hash);
+        $this->assertSame(hash('sha256', 'old-token'), $user->access_token_hash);
+        $this->assertDatabaseHas('user_access_tokens', [
+            'user_id' => $user->id,
+            'token_hash' => hash('sha256', $plainTextToken),
+        ]);
+
+        $this->withToken('old-token')
+            ->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('id', $user->id);
+    }
+
+    public function test_same_phone_can_remain_logged_in_on_multiple_browsers(): void
+    {
+        $firstToken = $this->postJson('/api/auth/phone', [
+            'phone' => '13600000000',
+        ])->assertOk()->json('token');
+        $secondToken = $this->postJson('/api/auth/phone', [
+            'phone' => '13600000000',
+        ])->assertOk()->json('token');
+
+        $user = User::query()->sole();
+
+        $this->assertNotSame($firstToken, $secondToken);
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('user_access_tokens', 2);
+
+        $this->withToken($firstToken)
+            ->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('id', $user->id);
+
+        $this->withToken($secondToken)
+            ->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('id', $user->id);
     }
 
     #[DataProvider('invalidPhonePayloads')]

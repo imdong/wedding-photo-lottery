@@ -22,9 +22,9 @@ class PhoneAuthenticationController extends Controller
                 ['invite_code' => Str::random(8)],
             );
 
-            $user->forceFill([
-                'access_token_hash' => hash('sha256', $plainTextToken),
-            ])->save();
+            $user->accessTokens()->create([
+                'token_hash' => hash('sha256', $plainTextToken),
+            ]);
 
             return $user;
         });
